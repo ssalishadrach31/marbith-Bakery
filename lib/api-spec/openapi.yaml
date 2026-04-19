@@ -3,20 +3,43 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Kampala Bakery Management System API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: products
+    description: Product catalog
+  - name: production
+    description: Production records
+  - name: inventory
+    description: Inventory management
+  - name: sales
+    description: Shop/POS sales
+  - name: orders
+    description: Online orders
+  - name: delivery
+    description: Delivery rider management
+  - name: wholesale
+    description: Wholesale supply
+  - name: employees
+    description: Employee management
+  - name: attendance
+    description: Attendance tracking
+  - name: payments
+    description: Payment tracking
+  - name: dashboard
+    description: Dashboard summaries
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +47,845 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # AUTH
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+
+  # PRODUCTS
+  /products:
+    get:
+      operationId: listProducts
+      tags: [products]
+      summary: List all products
+      responses:
+        "200":
+          description: Product list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+    post:
+      operationId: createProduct
+      tags: [products]
+      summary: Create product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductBody"
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+
+  /products/{id}:
+    get:
+      operationId: getProduct
+      tags: [products]
+      summary: Get product by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+    put:
+      operationId: updateProduct
+      tags: [products]
+      summary: Update product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductBody"
+      responses:
+        "200":
+          description: Product updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+    delete:
+      operationId: deleteProduct
+      tags: [products]
+      summary: Delete product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # PRODUCTION
+  /production:
+    get:
+      operationId: listProduction
+      tags: [production]
+      summary: List production records
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Production records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProductionRecord"
+    post:
+      operationId: createProduction
+      tags: [production]
+      summary: Record new production batch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductionBody"
+      responses:
+        "201":
+          description: Production recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductionRecord"
+
+  /production/today-summary:
+    get:
+      operationId: getTodayProductionSummary
+      tags: [production]
+      summary: Today's production summary per product
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProductionSummary"
+
+  # INVENTORY
+  /inventory:
+    get:
+      operationId: listInventory
+      tags: [inventory]
+      summary: List inventory levels
+      responses:
+        "200":
+          description: Inventory list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InventoryItem"
+
+  /inventory/low-stock:
+    get:
+      operationId: getLowStockItems
+      tags: [inventory]
+      summary: Get items with low stock
+      responses:
+        "200":
+          description: Low stock items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InventoryItem"
+
+  /inventory/{productId}/adjust:
+    post:
+      operationId: adjustInventory
+      tags: [inventory]
+      summary: Manually adjust inventory
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdjustInventoryBody"
+      responses:
+        "200":
+          description: Adjusted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryItem"
+
+  # SALES (POS)
+  /sales:
+    get:
+      operationId: listSales
+      tags: [sales]
+      summary: List sales
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sales list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sale"
+    post:
+      operationId: createSale
+      tags: [sales]
+      summary: Record a new sale (POS)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSaleBody"
+      responses:
+        "201":
+          description: Sale created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sale"
+
+  /sales/{id}:
+    get:
+      operationId: getSale
+      tags: [sales]
+      summary: Get sale by ID (receipt)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sale with items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaleDetail"
+
+  /sales/daily-summary:
+    get:
+      operationId: getDailySalesSummary
+      tags: [sales]
+      summary: Daily sales summary by payment method
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Daily summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailySalesSummary"
+
+  # ORDERS
+  /orders:
+    get:
+      operationId: listOrders
+      tags: [orders]
+      summary: List orders
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Place a new customer order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderBody"
+      responses:
+        "201":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /orders/{id}:
+    get:
+      operationId: getOrder
+      tags: [orders]
+      summary: Get order by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+    put:
+      operationId: updateOrderStatus
+      tags: [orders]
+      summary: Update order status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrderStatusBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /orders/pending-count:
+    get:
+      operationId: getPendingOrdersCount
+      tags: [orders]
+      summary: Count of pending orders
+      responses:
+        "200":
+          description: Count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountResponse"
+
+  # DELIVERY
+  /riders:
+    get:
+      operationId: listRiders
+      tags: [delivery]
+      summary: List delivery riders
+      responses:
+        "200":
+          description: Riders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Employee"
+
+  /deliveries:
+    get:
+      operationId: listDeliveries
+      tags: [delivery]
+      summary: List deliveries
+      parameters:
+        - name: riderId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deliveries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Delivery"
+
+  /deliveries/{id}/assign:
+    post:
+      operationId: assignDelivery
+      tags: [delivery]
+      summary: Assign order to a rider
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignDeliveryBody"
+      responses:
+        "200":
+          description: Assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Delivery"
+
+  /deliveries/{id}/status:
+    put:
+      operationId: updateDeliveryStatus
+      tags: [delivery]
+      summary: Rider updates delivery status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeliveryStatusBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Delivery"
+
+  # WHOLESALE
+  /wholesale/customers:
+    get:
+      operationId: listWholesaleCustomers
+      tags: [wholesale]
+      summary: List business customers
+      responses:
+        "200":
+          description: Customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WholesaleCustomer"
+    post:
+      operationId: createWholesaleCustomer
+      tags: [wholesale]
+      summary: Add a business customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWholesaleCustomerBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WholesaleCustomer"
+
+  /wholesale/supplies:
+    get:
+      operationId: listWholesaleSupplies
+      tags: [wholesale]
+      summary: List supply records
+      responses:
+        "200":
+          description: Supply records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WholesaleSupply"
+    post:
+      operationId: createWholesaleSupply
+      tags: [wholesale]
+      summary: Record a supply to a business customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWholesaleSupplyBody"
+      responses:
+        "201":
+          description: Supply recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WholesaleSupply"
+
+  /wholesale/supplies/{id}/payment:
+    put:
+      operationId: updateSupplyPaymentStatus
+      tags: [wholesale]
+      summary: Update payment status for a supply
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePaymentStatusBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WholesaleSupply"
+
+  /wholesale/outstanding-balance:
+    get:
+      operationId: getWholesaleOutstandingBalance
+      tags: [wholesale]
+      summary: Total outstanding credit balance
+      responses:
+        "200":
+          description: Balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceResponse"
+
+  # EMPLOYEES
+  /employees:
+    get:
+      operationId: listEmployees
+      tags: [employees]
+      summary: List employees
+      responses:
+        "200":
+          description: Employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Employee"
+    post:
+      operationId: createEmployee
+      tags: [employees]
+      summary: Add employee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeBody"
+      responses:
+        "201":
+          description: Employee created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+
+  /employees/{id}:
+    get:
+      operationId: getEmployee
+      tags: [employees]
+      summary: Get employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+    put:
+      operationId: updateEmployee
+      tags: [employees]
+      summary: Update employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+    delete:
+      operationId: deleteEmployee
+      tags: [employees]
+      summary: Delete employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ATTENDANCE
+  /attendance:
+    get:
+      operationId: listAttendance
+      tags: [attendance]
+      summary: List attendance records
+      parameters:
+        - name: employeeId
+          in: query
+          schema:
+            type: integer
+        - name: date
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Attendance records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AttendanceRecord"
+
+  /attendance/check-in:
+    post:
+      operationId: checkIn
+      tags: [attendance]
+      summary: Employee check-in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckInBody"
+      responses:
+        "201":
+          description: Checked in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+
+  /attendance/{id}/check-out:
+    put:
+      operationId: checkOut
+      tags: [attendance]
+      summary: Employee check-out
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Checked out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+
+  # PAYMENTS
+  /payments:
+    get:
+      operationId: listPayments
+      tags: [payments]
+      summary: List payment transactions
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Payment"
+    post:
+      operationId: recordPayment
+      tags: [payments]
+      summary: Record a mobile money payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordPaymentBody"
+      responses:
+        "201":
+          description: Payment recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+
+  /payments/revenue-breakdown:
+    get:
+      operationId: getRevenueBreakdown
+      tags: [payments]
+      summary: Revenue breakdown by payment method
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RevenueBreakdown"
+
+  # DASHBOARD
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Admin dashboard summary
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Recent activity feed
+      responses:
+        "200":
+          description: Activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +893,641 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    LoginBody:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required: [username, password]
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required: [token, user]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [admin, staff, rider]
+        employeeId:
+          type: integer
+          nullable: true
+      required: [id, username, name, role]
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        price:
+          type: number
+        unit:
+          type: string
+        category:
+          type: string
+        lowStockThreshold:
+          type: integer
+        isActive:
+          type: boolean
+        currentStock:
+          type: integer
+      required: [id, name, price, unit, category, lowStockThreshold, isActive, currentStock]
+
+    CreateProductBody:
+      type: object
+      properties:
+        name:
+          type: string
+        price:
+          type: number
+        unit:
+          type: string
+        category:
+          type: string
+        lowStockThreshold:
+          type: integer
+        isActive:
+          type: boolean
+      required: [name, price, unit, category, lowStockThreshold]
+
+    ProductionRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        productId:
+          type: integer
+        productName:
+          type: string
+        quantity:
+          type: integer
+        producedAt:
+          type: string
+        recordedBy:
+          type: string
+        notes:
+          type: string
+          nullable: true
+      required: [id, productId, productName, quantity, producedAt, recordedBy]
+
+    CreateProductionBody:
+      type: object
+      properties:
+        productId:
+          type: integer
+        quantity:
+          type: integer
+        notes:
+          type: string
+      required: [productId, quantity]
+
+    ProductionSummary:
+      type: object
+      properties:
+        productId:
+          type: integer
+        productName:
+          type: string
+        totalProduced:
+          type: integer
+      required: [productId, productName, totalProduced]
+
+    InventoryItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        productId:
+          type: integer
+        productName:
+          type: string
+        currentStock:
+          type: integer
+        lowStockThreshold:
+          type: integer
+        isLow:
+          type: boolean
+        lastUpdated:
+          type: string
+      required: [id, productId, productName, currentStock, lowStockThreshold, isLow, lastUpdated]
+
+    AdjustInventoryBody:
+      type: object
+      properties:
+        quantity:
+          type: integer
+        reason:
+          type: string
+      required: [quantity, reason]
+
+    Sale:
+      type: object
+      properties:
+        id:
+          type: integer
+        receiptNumber:
+          type: string
+        totalAmount:
+          type: number
+        paymentMethod:
+          type: string
+          enum: [cash, mtn_momo, airtel_money]
+        transactionId:
+          type: string
+          nullable: true
+        soldAt:
+          type: string
+        soldBy:
+          type: string
+        itemCount:
+          type: integer
+      required: [id, receiptNumber, totalAmount, paymentMethod, soldAt, soldBy, itemCount]
+
+    SaleDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        receiptNumber:
+          type: string
+        totalAmount:
+          type: number
+        paymentMethod:
+          type: string
+        transactionId:
+          type: string
+          nullable: true
+        soldAt:
+          type: string
+        soldBy:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleItem"
+      required: [id, receiptNumber, totalAmount, paymentMethod, soldAt, soldBy, items]
+
+    SaleItem:
+      type: object
+      properties:
+        productId:
+          type: integer
+        productName:
+          type: string
+        quantity:
+          type: integer
+        unitPrice:
+          type: number
+        subtotal:
+          type: number
+      required: [productId, productName, quantity, unitPrice, subtotal]
+
+    CreateSaleBody:
+      type: object
+      properties:
+        paymentMethod:
+          type: string
+          enum: [cash, mtn_momo, airtel_money]
+        transactionId:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleItemInput"
+      required: [paymentMethod, items]
+
+    SaleItemInput:
+      type: object
+      properties:
+        productId:
+          type: integer
+        quantity:
+          type: integer
+      required: [productId, quantity]
+
+    DailySalesSummary:
+      type: object
+      properties:
+        date:
+          type: string
+        totalRevenue:
+          type: number
+        totalTransactions:
+          type: integer
+        cashTotal:
+          type: number
+        mtnMomoTotal:
+          type: number
+        airtelMoneyTotal:
+          type: number
+      required: [date, totalRevenue, totalTransactions, cashTotal, mtnMomoTotal, airtelMoneyTotal]
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        customerName:
+          type: string
+        customerPhone:
+          type: string
+        deliveryLocation:
+          type: string
+        status:
+          type: string
+          enum: [pending, confirmed, out_for_delivery, delivered, cancelled]
+        totalAmount:
+          type: number
+        paymentMethod:
+          type: string
+          enum: [cash, mtn_momo, airtel_money]
+        transactionId:
+          type: string
+          nullable: true
+        placedAt:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleItem"
+      required: [id, customerName, customerPhone, deliveryLocation, status, totalAmount, paymentMethod, placedAt, items]
+
+    CreateOrderBody:
+      type: object
+      properties:
+        customerName:
+          type: string
+        customerPhone:
+          type: string
+        deliveryLocation:
+          type: string
+        paymentMethod:
+          type: string
+          enum: [cash, mtn_momo, airtel_money]
+        transactionId:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleItemInput"
+      required: [customerName, customerPhone, deliveryLocation, paymentMethod, items]
+
+    UpdateOrderStatusBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, confirmed, out_for_delivery, delivered, cancelled]
+      required: [status]
+
+    CountResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+      required: [count]
+
+    Delivery:
+      type: object
+      properties:
+        id:
+          type: integer
+        orderId:
+          type: integer
+        riderId:
+          type: integer
+          nullable: true
+        riderName:
+          type: string
+          nullable: true
+        customerName:
+          type: string
+        deliveryLocation:
+          type: string
+        status:
+          type: string
+          enum: [assigned, picked_up, delivered, failed]
+        deliveryFee:
+          type: number
+        feeCollected:
+          type: boolean
+        assignedAt:
+          type: string
+          nullable: true
+        deliveredAt:
+          type: string
+          nullable: true
+      required: [id, orderId, customerName, deliveryLocation, status, deliveryFee, feeCollected]
+
+    AssignDeliveryBody:
+      type: object
+      properties:
+        riderId:
+          type: integer
+        deliveryFee:
+          type: number
+      required: [riderId, deliveryFee]
+
+    UpdateDeliveryStatusBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [assigned, picked_up, delivered, failed]
+        feeCollected:
+          type: boolean
+      required: [status]
+
+    WholesaleCustomer:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        contactPerson:
+          type: string
+        phone:
+          type: string
+        location:
+          type: string
+        totalOutstanding:
+          type: number
+      required: [id, name, contactPerson, phone, location, totalOutstanding]
+
+    CreateWholesaleCustomerBody:
+      type: object
+      properties:
+        name:
+          type: string
+        contactPerson:
+          type: string
+        phone:
+          type: string
+        location:
+          type: string
+      required: [name, contactPerson, phone, location]
+
+    WholesaleSupply:
+      type: object
+      properties:
+        id:
+          type: integer
+        customerId:
+          type: integer
+        customerName:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleItem"
+        totalAmount:
+          type: number
+        paymentStatus:
+          type: string
+          enum: [paid, unpaid, credit]
+        amountPaid:
+          type: number
+        suppliedAt:
+          type: string
+        notes:
+          type: string
+          nullable: true
+      required: [id, customerId, customerName, items, totalAmount, paymentStatus, amountPaid, suppliedAt]
+
+    CreateWholesaleSupplyBody:
+      type: object
+      properties:
+        customerId:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleItemInput"
+        paymentStatus:
+          type: string
+          enum: [paid, unpaid, credit]
+        amountPaid:
+          type: number
+        notes:
+          type: string
+      required: [customerId, items, paymentStatus, amountPaid]
+
+    UpdatePaymentStatusBody:
+      type: object
+      properties:
+        paymentStatus:
+          type: string
+          enum: [paid, unpaid, credit]
+        amountPaid:
+          type: number
+      required: [paymentStatus, amountPaid]
+
+    BalanceResponse:
+      type: object
+      properties:
+        totalOutstanding:
+          type: number
+        customerCount:
+          type: integer
+      required: [totalOutstanding, customerCount]
+
+    Employee:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        role:
+          type: string
+          enum: [admin, baker, cashier, rider]
+        phone:
+          type: string
+        email:
+          type: string
+          nullable: true
+        salary:
+          type: number
+          nullable: true
+        joinDate:
+          type: string
+        isActive:
+          type: boolean
+      required: [id, name, role, phone, joinDate, isActive]
+
+    CreateEmployeeBody:
+      type: object
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+          enum: [admin, baker, cashier, rider]
+        phone:
+          type: string
+        email:
+          type: string
+        salary:
+          type: number
+        joinDate:
+          type: string
+        isActive:
+          type: boolean
+      required: [name, role, phone]
+
+    AttendanceRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        employeeId:
+          type: integer
+        employeeName:
+          type: string
+        checkIn:
+          type: string
+        checkOut:
+          type: string
+          nullable: true
+        date:
+          type: string
+        hoursWorked:
+          type: number
+          nullable: true
+      required: [id, employeeId, employeeName, checkIn, date]
+
+    CheckInBody:
+      type: object
+      properties:
+        employeeId:
+          type: integer
+      required: [employeeId]
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+        transactionId:
+          type: string
+        network:
+          type: string
+          enum: [mtn_momo, airtel_money, cash]
+        amount:
+          type: number
+        phoneNumber:
+          type: string
+        orderId:
+          type: integer
+          nullable: true
+        saleId:
+          type: integer
+          nullable: true
+        recordedAt:
+          type: string
+        notes:
+          type: string
+          nullable: true
+      required: [id, transactionId, network, amount, phoneNumber, recordedAt]
+
+    RecordPaymentBody:
+      type: object
+      properties:
+        transactionId:
+          type: string
+        network:
+          type: string
+          enum: [mtn_momo, airtel_money, cash]
+        amount:
+          type: number
+        phoneNumber:
+          type: string
+        orderId:
+          type: integer
+        saleId:
+          type: integer
+        notes:
+          type: string
+      required: [transactionId, network, amount, phoneNumber]
+
+    RevenueBreakdown:
+      type: object
+      properties:
+        date:
+          type: string
+        totalRevenue:
+          type: number
+        cashRevenue:
+          type: number
+        mtnMomoRevenue:
+          type: number
+        airtelMoneyRevenue:
+          type: number
+        shopSalesRevenue:
+          type: number
+        onlineOrdersRevenue:
+          type: number
+        wholesaleRevenue:
+          type: number
+      required: [date, totalRevenue, cashRevenue, mtnMomoRevenue, airtelMoneyRevenue, shopSalesRevenue, onlineOrdersRevenue, wholesaleRevenue]
+
+    DashboardSummary:
+      type: object
+      properties:
+        todayProduction:
+          type: integer
+        totalStockItems:
+          type: integer
+        lowStockCount:
+          type: integer
+        todayShopSales:
+          type: number
+        todayOnlineSales:
+          type: number
+        todayTotalRevenue:
+          type: number
+        pendingOrders:
+          type: integer
+        activeRiders:
+          type: integer
+        totalEmployees:
+          type: integer
+        outstandingWholesale:
+          type: number
+      required: [todayProduction, totalStockItems, lowStockCount, todayShopSales, todayOnlineSales, todayTotalRevenue, pendingOrders, activeRiders, totalEmployees, outstandingWholesale]
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [sale, order, production, delivery, wholesale]
+        description:
+          type: string
+        amount:
+          type: number
+          nullable: true
+        timestamp:
+          type: string
+      required: [id, type, description, timestamp]
