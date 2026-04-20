@@ -172,7 +172,7 @@ export default function POSPage() {
           {receiptData && (
             <div className="space-y-4">
               <div className="text-center border-b border-border pb-3">
-                <div className="font-bold text-lg">Kampala Bakes</div>
+                <div className="font-bold text-lg">Marbith Bakery & Investments</div>
                 <div className="text-xs text-muted-foreground">Receipt #{receiptData.receiptNumber}</div>
                 <div className="text-xs text-muted-foreground">{formatDateTime(receiptData.soldAt)}</div>
               </div>

@@ -15,6 +15,7 @@ import WholesalePage from "@/pages/wholesale";
 import EmployeesPage from "@/pages/employees";
 import PaymentsPage from "@/pages/payments";
 import ProductsPage from "@/pages/products";
+import UsersPage from "@/pages/users";
 import OrderFormPage from "@/pages/order-form";
 import RiderDeliveriesPage from "@/pages/rider-deliveries";
 import Layout from "@/components/layout";
@@ -62,6 +63,9 @@ function Router() {
       </Route>
       <Route path="/products">
         {() => <ProtectedRoute component={ProductsPage} roles={["admin"]} />}
+      </Route>
+      <Route path="/users">
+        {() => <ProtectedRoute component={UsersPage} roles={["admin"]} />}
       </Route>
       <Route path="/rider-deliveries">
         {() => <ProtectedRoute component={RiderDeliveriesPage} roles={["rider"]} />}

@@ -18,7 +18,7 @@ import {
   Menu,
   X,
   LogOut,
-  ChevronRight,
+  ShieldCheck,
 } from "lucide-react";
 
 interface NavItem {
@@ -39,6 +39,7 @@ const navItems: NavItem[] = [
   { href: "/employees", label: "Employees", icon: Users, roles: ["admin"] },
   { href: "/payments", label: "Payments", icon: CreditCard, roles: ["admin"] },
   { href: "/products", label: "Products", icon: Tag, roles: ["admin"] },
+  { href: "/users", label: "User Management", icon: ShieldCheck, roles: ["admin"] },
   { href: "/rider-deliveries", label: "My Deliveries", icon: Truck, roles: ["rider"] },
 ];
 
@@ -58,7 +59,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       <div className="px-5 py-5 border-b border-sidebar-border">
-        <div className="text-sidebar-primary font-bold text-xl tracking-tight">Kampala Bakes</div>
+        <div className="text-sidebar-primary font-bold text-lg tracking-tight leading-tight">Marbith Bakery<br /><span className="text-xs font-normal text-sidebar-foreground/50 tracking-normal">& Investments</span></div>
         <div className="text-sidebar-foreground/60 text-xs mt-1">{user?.name} &mdash; {user?.role}</div>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
@@ -124,7 +125,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <button onClick={() => setSidebarOpen(true)} className="text-foreground">
             <Menu className="h-5 w-5" />
           </button>
-          <span className="font-bold text-primary">Kampala Bakes</span>
+          <span className="font-bold text-primary">Marbith Bakery</span>
           <div className="w-5" />
         </header>
 

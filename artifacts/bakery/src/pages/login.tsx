@@ -35,8 +35,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-sidebar px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="text-4xl font-bold text-sidebar-primary mb-1">Kampala Bakes</div>
-          <p className="text-sidebar-foreground/60 text-sm">Bakery Management System</p>
+          <div className="text-3xl font-bold text-sidebar-primary mb-0.5 leading-tight">Marbith Bakery</div>
+          <div className="text-sidebar-primary/70 font-semibold text-sm">& Investments</div>
+          <p className="text-sidebar-foreground/50 text-xs mt-1">Management System</p>
         </div>
         <div className="bg-card rounded-2xl shadow-xl border border-card-border p-7">
           <h2 className="text-lg font-semibold text-foreground mb-5">Sign In</h2>

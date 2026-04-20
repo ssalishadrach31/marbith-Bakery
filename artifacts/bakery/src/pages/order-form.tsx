@@ -85,7 +85,7 @@ export default function OrderFormPage() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="bg-sidebar text-sidebar-foreground px-4 py-5 text-center">
-        <h1 className="text-2xl font-bold text-sidebar-primary">Kampala Bakes</h1>
+        <h1 className="text-2xl font-bold text-sidebar-primary">Marbith Bakery & Investments</h1>
         <p className="text-sidebar-foreground/60 text-sm mt-0.5">Order fresh baked goods — delivered to you</p>
       </div>
 

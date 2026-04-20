@@ -1,6 +1,6 @@
-# Kampala Bakery Management System
+# Marbith Bakery and Investments — Management System
 
-A full-stack bakery management system for a small bakery in Kampala, Uganda.
+A full-stack bakery management system for Marbith Bakery and Investments in Kampala, Uganda.
 
 ## Architecture
 
