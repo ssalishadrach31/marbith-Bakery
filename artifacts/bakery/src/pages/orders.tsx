@@ -22,8 +22,8 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUSES = ["pending", "confirmed", "out_for_delivery", "delivered", "cancelled"];
 
 export default function OrdersPage() {
-  const [statusFilter, setStatusFilter] = useState("");
-  const { data: orders, isLoading } = useListOrders({ params: statusFilter ? { status: statusFilter } : undefined, query: { queryKey: getListOrdersQueryKey() } });
+  const [statusFilter, setStatusFilter] = useState("all");
+  const { data: orders, isLoading } = useListOrders({ params: statusFilter !== "all" ? { status: statusFilter } : undefined, query: { queryKey: getListOrdersQueryKey() } });
   const { data: riders } = useListRiders();
   const updateStatus = useUpdateOrderStatus();
   const assignDelivery = useAssignDelivery();
@@ -66,9 +66,9 @@ export default function OrdersPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold">Online Orders</h1>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-44"><SelectValue placeholder="All statuses" /></SelectTrigger>
+          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All</SelectItem>
+            <SelectItem value="all">All statuses</SelectItem>
             {STATUSES.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}
           </SelectContent>
         </Select>
@@ -131,19 +131,61 @@ export default function OrdersPage() {
       </Card>
 
       <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Update Order Status</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Order #{selectedOrder?.id}</DialogTitle>
+          </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Order #{selectedOrder?.id} — {selectedOrder?.customerName}</p>
-            <Select value={newStatus} onValueChange={setNewStatus}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {STATUSES.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {/* Customer Info */}
+            <div className="bg-muted/40 rounded-lg p-3 space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Customer</span>
+                <span className="font-semibold">{selectedOrder?.customerName}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Phone</span>
+                <span>{selectedOrder?.customerPhone}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Location</span>
+                <span>{selectedOrder?.deliveryLocation}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Payment</span>
+                <span>{selectedOrder?.paymentMethod}</span>
+              </div>
+            </div>
+            {/* Items ordered */}
+            {(selectedOrder as any)?.items?.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Items Ordered</p>
+                <div className="space-y-1.5">
+                  {(selectedOrder as any).items.map((item: any, i: number) => (
+                    <div key={i} className="flex justify-between items-center text-sm border-b border-border pb-1.5 last:border-0">
+                      <span>{item.productName} <span className="text-muted-foreground">× {item.quantity}</span></span>
+                      <span className="font-medium">{formatUGX(item.subtotal)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center text-sm font-bold pt-1">
+                    <span>Total</span>
+                    <span className="text-primary">{formatUGX(selectedOrder?.totalAmount ?? 0)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* Status update */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Update Status</p>
+              <Select value={newStatus} onValueChange={setNewStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {STATUSES.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setSelectedOrder(null)}>Cancel</Button>
-              <Button onClick={handleStatusUpdate} disabled={updateStatus.isPending}>Update</Button>
+              <Button onClick={handleStatusUpdate} disabled={updateStatus.isPending}>Update Status</Button>
             </div>
           </div>
         </DialogContent>
