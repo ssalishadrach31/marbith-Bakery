@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, wholesaleCustomersTable, wholesaleSuppliesTable, wholesaleSupplyItemsTable, productsTable, inventoryTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, inArray } from "drizzle-orm";
 import { CreateWholesaleCustomerBody, CreateWholesaleSupplyBody, UpdateSupplyPaymentStatusBody, UpdateSupplyPaymentStatusParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -50,7 +50,7 @@ router.post("/wholesale/supplies", async (req, res): Promise<void> => {
   const { customerId, items, paymentStatus, amountPaid, notes } = parsed.data;
 
   const productIds = items.map((i) => i.productId);
-  const products = await db.select().from(productsTable).where(sql`${productsTable.id} = ANY(${productIds})`);
+  const products = await db.select().from(productsTable).where(inArray(productsTable.id, productIds));
   const productMap = new Map(products.map((p) => [p.id, p]));
 
   let totalAmount = 0;
