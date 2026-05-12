@@ -12,7 +12,7 @@ import {
   Truck, ChevronRight, Plus, Users,
   IceCream, Coffee, Droplets, ChevronLeft,
   CalendarDays, ArrowRight, ChevronDown,
-  History, MoonStar, X, AlertCircle,
+  History, MoonStar, X, AlertCircle, Banknote,
 } from "lucide-react";
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -336,6 +336,33 @@ export default function StaffDashboardPage() {
     refetchInterval: 30_000,
     refetchOnMount: "always",
     staleTime: 0,
+  });
+
+  // Cashier daily pay (admin only)
+  const { data: dailyPayData = [], refetch: refetchDailyPay } = useQuery<any[]>({
+    queryKey: ["daily-pay", todayStr],
+    queryFn: () => apiFetch(`/daily-pay?date=${todayStr}`),
+    enabled: user?.role === "admin",
+    staleTime: 30_000,
+  });
+  const [customAmounts, setCustomAmounts] = useState<Record<number, string>>({});
+  const submitPayMutation = useMutation({
+    mutationFn: ({ name, amount }: { name: string; amount: number }) =>
+      apiFetch("/expenses", {
+        method: "POST",
+        body: JSON.stringify({
+          amount,
+          description: `Daily salary for ${name} - ${todayStr}`,
+          category: "daily_salary",
+          expenseDate: todayStr,
+        }),
+      }),
+    onSuccess: (_data, vars) => {
+      refetchDailyPay();
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      toast({ title: "Pay submitted", description: `Salary for ${vars.name} sent for approval.` });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -1106,6 +1133,98 @@ export default function StaffDashboardPage() {
                   ))}
                 </div>
               </details>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── CASHIER DAILY PAY (admin only) ── */}
+      {isAdmin && (
+        <Card className="border-amber-200 bg-amber-50/30">
+          <CardContent className="p-5">
+            <button
+              className="w-full flex items-center gap-2 mb-4 text-left"
+              onClick={() => toggleSection("daily-pay")}
+            >
+              <Banknote className="h-5 w-5 text-amber-600" />
+              <h2 className="font-semibold">Cashier Daily Pay</h2>
+              <span className="text-xs text-muted-foreground ml-1 font-normal">Submit today's salaries for approval</span>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 ml-auto transition-transform ${collapsed["daily-pay"] ? "-rotate-90" : ""}`} />
+            </button>
+
+            {!collapsed["daily-pay"] && (
+              dailyPayData.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-3">No cashiers checked in today.</p>
+              ) : (
+                <div className="space-y-3">
+                  {dailyPayData.map((c: any) => (
+                    <div key={c.employeeId} className="flex items-center justify-between p-3 bg-white rounded-lg border border-amber-100 shadow-sm gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 font-bold text-sm flex items-center justify-center shrink-0">
+                          {c.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-sm truncate">{c.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {c.hoursWorked ? `${Number(c.hoursWorked).toFixed(1)} hrs · ` : ""}
+                            {c.salary
+                              ? `UGX ${c.dailyRate.toLocaleString()} / day`
+                              : <span className="text-amber-600">No salary on file</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {c.alreadySubmitted ? (
+                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                            c.expenseStatus === "approved"
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : c.expenseStatus === "rejected"
+                              ? "bg-red-50 text-red-700 border-red-200"
+                              : "bg-amber-50 text-amber-700 border-amber-200"
+                          }`}>
+                            {c.expenseStatus === "approved" ? "✓ Paid" : c.expenseStatus === "rejected" ? "Rejected" : "Pending"}
+                          </span>
+                        ) : (
+                          <>
+                            {!c.salary && (
+                              <Input
+                                type="number"
+                                placeholder="Amount (UGX)"
+                                className="w-36 h-8 text-sm"
+                                value={customAmounts[c.employeeId] ?? ""}
+                                onChange={(e) =>
+                                  setCustomAmounts((prev) => ({ ...prev, [c.employeeId]: e.target.value }))
+                                }
+                              />
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-amber-300 text-amber-700 hover:bg-amber-100 hover:border-amber-400"
+                              disabled={
+                                submitPayMutation.isPending ||
+                                (!c.salary && !customAmounts[c.employeeId])
+                              }
+                              onClick={() => {
+                                const amount = c.salary
+                                  ? c.dailyRate
+                                  : parseInt(customAmounts[c.employeeId] ?? "0", 10);
+                                if (!amount || amount <= 0) return;
+                                submitPayMutation.mutate({ name: c.name, amount });
+                              }}
+                            >
+                              <Banknote className="h-3.5 w-3.5 mr-1" /> Submit Pay
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground pt-1">
+                    Submitted salaries go into the expenses approval queue. Martha or Shadrach must approve before payment is released.
+                  </p>
+                </div>
+              )
             )}
           </CardContent>
         </Card>

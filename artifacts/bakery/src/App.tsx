@@ -26,6 +26,7 @@ import DailyReportPage from "@/pages/daily-report";
 import DevToolsPage from "@/pages/dev-tools";
 import MonthlyReportPage from "@/pages/monthly-report";
 import ProfilePage from "@/pages/profile";
+import CommunicationsPage from "@/pages/communications";
 import Layout from "@/components/layout";
 import NotFound from "@/pages/not-found";
 
@@ -98,6 +99,9 @@ function Router() {
       </Route>
       <Route path="/profile">
         {() => <ProtectedRoute component={ProfilePage} />}
+      </Route>
+      <Route path="/communications">
+        {() => <ProtectedRoute component={CommunicationsPage} />}
       </Route>
       <Route path="/inventory">
         {() => <ProtectedRoute component={InventoryPage} roles={["admin", "staff", "cashier", "baker"]} />}

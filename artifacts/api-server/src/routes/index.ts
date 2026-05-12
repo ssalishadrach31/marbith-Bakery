@@ -21,6 +21,8 @@ import notificationsRouter from "./notifications";
 import devToolsRouter from "./dev-tools";
 import shiftClosingsRouter from "./shift-closings";
 import reportsRouter from "./reports";
+import communicationsRouter from "./communications";
+import dailyPayRouter from "./daily-pay";
 
 const router: IRouter = Router();
 
@@ -46,5 +48,7 @@ router.use(notificationsRouter);
 router.use(devToolsRouter);
 router.use(shiftClosingsRouter);
 router.use(reportsRouter);
+router.use(communicationsRouter);
+router.use(dailyPayRouter);
 
 export default router;

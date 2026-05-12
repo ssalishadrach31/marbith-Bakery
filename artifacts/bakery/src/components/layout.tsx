@@ -25,6 +25,7 @@ import {
   Terminal,
   FileText,
   UserCircle,
+  MessageSquare,
 } from "lucide-react";
 
 interface NavItem {
@@ -54,6 +55,7 @@ const navItems: NavItem[] = [
   { href: "/users",            label: "User Management", icon: ShieldCheck,     roles: ["admin"] },
   { href: "/dev-tools",        label: "Developer Tools", icon: Terminal,        roles: ["admin"], onlyFor: "shadrachssali@gmail.com" },
   { href: "/rider-deliveries", label: "My Deliveries",   icon: Truck,           roles: ["rider"] },
+  { href: "/communications",   label: "Communications",  icon: MessageSquare,   roles: ["admin", "staff", "cashier", "baker", "rider"] },
   { href: "/profile",          label: "My Profile",      icon: UserCircle,      roles: ["admin", "staff", "cashier", "baker", "rider"] },
 ];
 
