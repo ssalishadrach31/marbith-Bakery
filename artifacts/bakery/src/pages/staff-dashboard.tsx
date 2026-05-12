@@ -357,7 +357,9 @@ export default function StaffDashboardPage() {
   });
 
   const todayClosing = (shiftClosings ?? []).find((c: any) => c.shiftDate === todayStr);
-  const isTodayClosed = !!todayClosing;
+  const isAdmin = role === "admin";
+  const isTodayClosed = todayClosing?.status === "approved";
+  const isPendingClose = todayClosing?.status === "pending";
 
   const closeDayMutation = useMutation({
     mutationFn: () => apiFetch("/shift-closings", { method: "POST", body: JSON.stringify({ shiftDate: todayStr }) }),
@@ -365,7 +367,25 @@ export default function StaffDashboardPage() {
       qc.invalidateQueries({ queryKey: ["shift-closings"] });
       qc.invalidateQueries({ queryKey: ["shift-history"] });
       setShowCloseConfirm(false);
-      toast({ title: "Day Closed", description: `Shift for ${today} has been marked as closed.` });
+      if (role === "admin") {
+        toast({ title: "Day Closed", description: `Shift for ${today} has been marked as closed.` });
+      } else {
+        toast({ title: "Request Sent", description: "Your close day request has been sent to admin for review." });
+      }
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const approveCloseMutation = useMutation({
+    mutationFn: ({ id, action }: { id: number; action: "approve" | "reject" }) =>
+      apiFetch(`/shift-closings/${id}/approve`, { method: "PATCH", body: JSON.stringify({ action }) }),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["shift-closings"] });
+      if (data.deleted) {
+        toast({ title: "Request Rejected", description: "The close day request has been rejected." });
+      } else {
+        toast({ title: "Day Closed & Approved", description: "Today's shift has been officially closed." });
+      }
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
@@ -527,17 +547,30 @@ export default function StaffDashboardPage() {
         </div>
       </div>
 
-      {/* Closed-day banner */}
-      {isTodayClosed && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-green-800">
-          <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+      {/* Closed-day / pending banner */}
+      {(isTodayClosed || isPendingClose) && (
+        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${isTodayClosed ? "bg-green-50 border-green-200 text-green-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
+          {isTodayClosed
+            ? <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+            : <Clock className="h-5 w-5 text-amber-500 shrink-0" />
+          }
           <div className="flex-1 min-w-0">
-            <span className="font-semibold text-sm">Day Closed</span>
-            <span className="text-xs text-green-700 ml-2">
-              Closed by {todayClosing.closedBy} at {new Date(todayClosing.closedAt).toLocaleTimeString("en-UG", { hour: "2-digit", minute: "2-digit" })}
-            </span>
+            {isTodayClosed ? (
+              <>
+                <span className="font-semibold text-sm">Day Closed</span>
+                <span className="text-xs text-green-700 ml-2">
+                  Closed by {todayClosing.closedBy} at {new Date(todayClosing.closedAt).toLocaleTimeString("en-UG", { hour: "2-digit", minute: "2-digit" })}
+                  {todayClosing.approvedBy && ` · Approved by ${todayClosing.approvedBy}`}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-sm">Close Day — Awaiting Admin Approval</span>
+                <span className="text-xs text-amber-700 ml-2">Requested by {todayClosing.closedBy}</span>
+              </>
+            )}
           </div>
-          <button onClick={() => setShowHistory(true)} className="text-xs underline text-green-700 shrink-0">View History</button>
+          <button onClick={() => setShowHistory(true)} className={`text-xs underline shrink-0 ${isTodayClosed ? "text-green-700" : "text-amber-700"}`}>View History</button>
         </div>
       )}
 
@@ -1216,23 +1249,33 @@ export default function StaffDashboardPage() {
       </Card>
 
       {/* ── CLOSE DAY ── */}
-      <Card className={`border-2 ${isTodayClosed ? "border-green-200 bg-green-50/40" : "border-dashed border-primary/30"}`}>
+      <Card className={`border-2 ${isTodayClosed ? "border-green-200 bg-green-50/40" : isPendingClose ? "border-amber-200 bg-amber-50/30" : "border-dashed border-primary/30"}`}>
         <CardContent className="p-5">
           <div className="flex items-center gap-3">
-            <MoonStar className={`h-5 w-5 ${isTodayClosed ? "text-green-600" : "text-primary"}`} />
+            <MoonStar className={`h-5 w-5 ${isTodayClosed ? "text-green-600" : isPendingClose ? "text-amber-500" : "text-primary"}`} />
             <div className="flex-1">
-              <h3 className="font-semibold text-sm">{isTodayClosed ? "Today's Shift is Closed" : "Close Today's Shift"}</h3>
+              <h3 className="font-semibold text-sm">
+                {isTodayClosed ? "Today's Shift is Closed" : isPendingClose ? "Close Day — Pending Admin Approval" : "Close Today's Shift"}
+              </h3>
               {isTodayClosed ? (
                 <p className="text-xs text-green-700 mt-0.5">
-                  Closed by <strong>{todayClosing.closedBy}</strong> at {new Date(todayClosing.closedAt).toLocaleTimeString("en-UG", { hour: "2-digit", minute: "2-digit" })} — grand total <strong>{formatUGX(grandTotal)}</strong>
+                  Closed by <strong>{todayClosing.closedBy}</strong> at {new Date(todayClosing.closedAt).toLocaleTimeString("en-UG", { hour: "2-digit", minute: "2-digit" })}
+                  {todayClosing.approvedBy && ` · Approved by ${todayClosing.approvedBy}`} — grand total <strong>{formatUGX(grandTotal)}</strong>
+                </p>
+              ) : isPendingClose ? (
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Requested by <strong>{todayClosing.closedBy}</strong>.{" "}
+                  {isAdmin ? "Review and approve or reject below." : "Waiting for an admin to review."}
                 </p>
               ) : (
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Mark this day as done. All counts and sales are saved and will appear in the history and monthly report.
+                  {isAdmin
+                    ? "Mark this day as done. All counts and sales are saved and will appear in the history and monthly report."
+                    : "Submit a close day request. An admin will review and approve it before the day is officially closed."}
                 </p>
               )}
             </div>
-            {isTodayClosed ? (
+            {isTodayClosed && isAdmin ? (
               <button
                 onClick={() => closeDayMutation.mutate()}
                 disabled={closeDayMutation.isPending}
@@ -1240,23 +1283,58 @@ export default function StaffDashboardPage() {
               >
                 Re-close
               </button>
-            ) : (
+            ) : !isTodayClosed && !isPendingClose ? (
               <Button
                 onClick={() => setShowCloseConfirm(true)}
                 className="shrink-0 bg-primary text-primary-foreground"
                 disabled={closeDayMutation.isPending}
               >
-                <MoonStar className="h-4 w-4 mr-1.5" /> Close Day
+                <MoonStar className="h-4 w-4 mr-1.5" /> {isAdmin ? "Close Day" : "Request Close"}
               </Button>
-            )}
+            ) : null}
           </div>
 
-          {/* Confirmation dialog inline */}
-          {showCloseConfirm && !isTodayClosed && (
-            <div className="mt-4 p-4 bg-background border border-border rounded-xl space-y-3">
-              <p className="text-sm font-medium">Confirm closing today's shift?</p>
+          {/* Admin: approve / reject the pending close request */}
+          {isPendingClose && isAdmin && (
+            <div className="mt-4 p-4 bg-background border border-amber-200 rounded-xl space-y-3">
+              <p className="text-sm font-medium">
+                <strong>{todayClosing.closedBy}</strong> has requested to close today's shift.
+              </p>
               <p className="text-xs text-muted-foreground">
-                This records a formal end to the shift for <strong>{today}</strong>. You can still add or edit data after closing — this is just a marker.
+                Grand total today: <strong>{formatUGX(grandTotal)}</strong>. Review the counts and sales above, then decide.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => approveCloseMutation.mutate({ id: todayClosing.id, action: "approve" })}
+                  disabled={approveCloseMutation.isPending}
+                  className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Approve & Close Day
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => approveCloseMutation.mutate({ id: todayClosing.id, action: "reject" })}
+                  disabled={approveCloseMutation.isPending}
+                  className="border-red-300 text-red-600 hover:bg-red-50"
+                >
+                  Reject Request
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Confirmation dialog inline */}
+          {showCloseConfirm && !isTodayClosed && !isPendingClose && (
+            <div className="mt-4 p-4 bg-background border border-border rounded-xl space-y-3">
+              <p className="text-sm font-medium">
+                {isAdmin ? "Confirm closing today's shift?" : "Submit a close day request to admin?"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {isAdmin
+                  ? `This records a formal end to the shift for ${today}. You can still add or edit data after closing — this is just a marker.`
+                  : "Your request will be sent to admin for review. The day will only be officially closed once an admin approves it."}
               </p>
               <div className="flex gap-2">
                 <Button
@@ -1264,7 +1342,7 @@ export default function StaffDashboardPage() {
                   onClick={() => closeDayMutation.mutate()}
                   disabled={closeDayMutation.isPending}
                 >
-                  {closeDayMutation.isPending ? "Closing..." : "Yes, Close Day"}
+                  {closeDayMutation.isPending ? "Submitting..." : isAdmin ? "Yes, Close Day" : "Send Request"}
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setShowCloseConfirm(false)}>
                   Cancel

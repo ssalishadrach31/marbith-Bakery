@@ -43,6 +43,25 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   });
 });
 
+router.post("/auth/change-password", async (req, res): Promise<void> => {
+  const h = req.headers.authorization;
+  if (!h?.startsWith("Bearer ")) { res.status(401).json({ error: "Unauthorized" }); return; }
+  let payload: { userId: number };
+  try { payload = jwt.verify(h.slice(7), JWT_SECRET) as any; }
+  catch { res.status(401).json({ error: "Invalid token" }); return; }
+
+  const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+  if (!currentPassword || !newPassword) { res.status(400).json({ error: "currentPassword and newPassword are required" }); return; }
+  if (newPassword.length < 6) { res.status(400).json({ error: "New password must be at least 6 characters" }); return; }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, payload.userId));
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  if (user.password !== currentPassword) { res.status(401).json({ error: "Current password is incorrect" }); return; }
+
+  await db.update(usersTable).set({ password: newPassword }).where(eq(usersTable.id, payload.userId));
+  res.json({ success: true });
+});
+
 router.post("/auth/logout", (_req, res): void => {
   res.json({ success: true });
 });

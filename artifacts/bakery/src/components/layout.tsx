@@ -1,7 +1,7 @@
 import { useLocation } from "wouter";
 import { getUser, removeToken } from "@/lib/auth";
 import { queryClient } from "@/lib/query-client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import NotificationBell from "@/components/notification-bell";
 import {
   LayoutDashboard,
@@ -24,6 +24,7 @@ import {
   FileBarChart,
   Terminal,
   FileText,
+  UserCircle,
 } from "lucide-react";
 
 interface NavItem {
@@ -39,26 +40,37 @@ const navItems: NavItem[] = [
   { href: "/staff-dashboard",  label: "Shift Dashboard", icon: BarChart2,       roles: ["admin", "staff", "cashier"] },
   { href: "/baker-dashboard",  label: "Kitchen",         icon: ChefHat,         roles: ["baker"] },
   { href: "/production",       label: "Production",      icon: Factory,         roles: ["admin", "staff", "baker"] },
-  { href: "/inventory",        label: "Inventory",       icon: Package,         roles: ["admin"] },
+  { href: "/inventory",        label: "Inventory",       icon: Package,         roles: ["admin", "staff", "cashier", "baker"] },
   { href: "/pos",              label: "POS / Sales",     icon: ShoppingCart,    roles: ["admin", "staff", "cashier"] },
-  { href: "/orders",           label: "Orders",          icon: ClipboardList,   roles: ["admin"] },
-  { href: "/deliveries",       label: "Deliveries",      icon: Truck,           roles: ["admin"] },
+  { href: "/orders",           label: "Orders",          icon: ClipboardList,   roles: ["admin", "staff"] },
+  { href: "/deliveries",       label: "Deliveries",      icon: Truck,           roles: ["admin", "staff"] },
   { href: "/wholesale",        label: "Wholesale",       icon: Store,           roles: ["admin"] },
   { href: "/employees",        label: "Employees",       icon: Users,           roles: ["admin"] },
   { href: "/payments",         label: "Payments",        icon: CreditCard,      roles: ["admin"] },
   { href: "/products",         label: "Products",        icon: Tag,             roles: ["admin"] },
   { href: "/expenses",         label: "Expenses",        icon: Receipt,         roles: ["admin", "staff", "cashier", "baker"] },
-  { href: "/daily-report",     label: "Daily Report",    icon: FileBarChart,    roles: ["admin"] },
+  { href: "/daily-report",     label: "Daily Report",    icon: FileBarChart,    roles: ["admin", "staff"] },
   { href: "/monthly-report",   label: "Monthly Report",  icon: FileText,        roles: ["admin"] },
   { href: "/users",            label: "User Management", icon: ShieldCheck,     roles: ["admin"] },
   { href: "/dev-tools",        label: "Developer Tools", icon: Terminal,        roles: ["admin"], onlyFor: "shadrachssali@gmail.com" },
   { href: "/rider-deliveries", label: "My Deliveries",   icon: Truck,           roles: ["rider"] },
+  { href: "/profile",          label: "My Profile",      icon: UserCircle,      roles: ["admin", "staff", "cashier", "baker", "rider"] },
 ];
+
+const BRAND_KEY = "marbith_branding";
+function getBranding() {
+  try { const r = localStorage.getItem(BRAND_KEY); return r ? JSON.parse(r) : {}; } catch { return {}; }
+}
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const user = getUser();
   const [location, navigate] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const branding = getBranding();
+
+  useEffect(() => {
+    if (branding.font) document.documentElement.style.fontFamily = branding.font;
+  }, []);
 
   const visibleNav = navItems.filter((item) =>
     user &&
@@ -78,9 +90,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col h-full">
       <div className="px-5 py-5 border-b border-sidebar-border">
         <div className="text-sidebar-primary font-bold text-lg tracking-tight leading-tight">
-          Marbith Bakery
+          {branding.appName || "Marbith Bakery"}
           <br />
-          <span className="text-xs font-normal text-sidebar-foreground/50 tracking-normal">& Investments</span>
+          <span className="text-xs font-normal text-sidebar-foreground/50 tracking-normal">{branding.tagline ?? "& Investments"}</span>
         </div>
         <div className="text-sidebar-foreground/70 text-xs font-medium mt-1.5">{user?.name}</div>
         <div className="text-sidebar-foreground/40 text-xs">{displayTitle}</div>
@@ -155,7 +167,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <span className="font-bold text-amber-900 md:hidden">Marbith Bakery</span>
+            <span className="font-bold text-amber-900 md:hidden">{branding.appName || "Marbith Bakery"}</span>
             <span className="hidden md:block text-sm font-medium text-amber-700">
               {user?.name && (
                 <span>

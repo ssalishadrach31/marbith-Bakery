@@ -12,7 +12,9 @@ import {
   ShoppingCart, Factory, CalendarDays, Wallet,
   Package, ClipboardList, Users, Bell, CheckCircle2,
   Store, Plus, ToggleLeft, ToggleRight, MapPin, Phone, Tag,
+  Eye, EyeOff, Save, Palette, KeyRound,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 async function apiFetch(path: string, options?: RequestInit) {
   const token = getToken();
@@ -123,10 +125,12 @@ export default function DevToolsPage() {
       </div>
 
       <Tabs defaultValue="data">
-        <TabsList className="w-full">
-          <TabsTrigger value="data" className="flex-1">Data Management</TabsTrigger>
-          <TabsTrigger value="prices" className="flex-1">Prices</TabsTrigger>
-          <TabsTrigger value="shops" className="flex-1">Shops</TabsTrigger>
+        <TabsList className="w-full grid grid-cols-5">
+          <TabsTrigger value="data" className="text-xs">Data</TabsTrigger>
+          <TabsTrigger value="prices" className="text-xs">Prices</TabsTrigger>
+          <TabsTrigger value="shops" className="text-xs">Shops</TabsTrigger>
+          <TabsTrigger value="branding" className="text-xs">Branding</TabsTrigger>
+          <TabsTrigger value="passwords" className="text-xs">Passwords</TabsTrigger>
         </TabsList>
 
         {/* ── DATA MANAGEMENT TAB ─────────────────────────────────── */}
@@ -248,6 +252,16 @@ export default function DevToolsPage() {
         {/* ── SHOPS TAB ────────────────────────────────────────────── */}
         <TabsContent value="shops" className="mt-5">
           <ShopsPanel />
+        </TabsContent>
+
+        {/* ── BRANDING TAB ─────────────────────────────────────────── */}
+        <TabsContent value="branding" className="mt-5">
+          <BrandingPanel />
+        </TabsContent>
+
+        {/* ── PASSWORDS TAB ────────────────────────────────────────── */}
+        <TabsContent value="passwords" className="mt-5">
+          <PasswordsPanel />
         </TabsContent>
       </Tabs>
     </div>
@@ -555,6 +569,156 @@ function ShopsPanel() {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
         <strong>Future:</strong> Once you add a second shop, sales, production, and reports will be filterable per shop so each location's performance is tracked separately. For now, everything runs as one shop.
       </div>
+    </div>
+  );
+}
+
+// ── BRANDING PANEL ───────────────────────────────────────────────────────────
+const BRAND_KEY = "marbith_branding";
+const FONTS = [
+  { value: "", label: "Default (system-ui)" },
+  { value: "'Georgia', serif", label: "Georgia — elegant serif" },
+  { value: "Verdana, sans-serif", label: "Verdana — clean & readable" },
+  { value: "'Trebuchet MS', sans-serif", label: "Trebuchet MS — modern" },
+  { value: "'Arial', sans-serif", label: "Arial — classic" },
+  { value: "'Courier New', monospace", label: "Courier New — typewriter" },
+];
+
+function BrandingPanel() {
+  const { toast } = useToast();
+  function load() {
+    try { const r = localStorage.getItem(BRAND_KEY); return r ? JSON.parse(r) : {}; } catch { return {}; }
+  }
+  const [b, setB] = useState<Record<string, string>>(load);
+
+  function save() {
+    localStorage.setItem(BRAND_KEY, JSON.stringify(b));
+    if (b.font) document.documentElement.style.fontFamily = b.font;
+    else document.documentElement.style.fontFamily = "";
+    toast({ title: "Branding saved", description: "Changes applied. The sidebar name updates after the next page load." });
+  }
+
+  function reset() {
+    localStorage.removeItem(BRAND_KEY);
+    setB({});
+    document.documentElement.style.fontFamily = "";
+    toast({ title: "Branding reset to defaults" });
+  }
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-muted-foreground">
+        Customize the bakery name, tagline, and font shown across the management system. Changes are saved on this device and apply immediately.
+      </p>
+      <Card>
+        <CardContent className="p-5 space-y-4">
+          <div>
+            <Label className="text-xs text-muted-foreground">App / Bakery Name</Label>
+            <Input value={b.appName ?? ""} onChange={(e) => setB({ ...b, appName: e.target.value })} placeholder="Marbith Bakery" className="mt-1 font-semibold" />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Tagline (shown below name in sidebar)</Label>
+            <Input value={b.tagline ?? ""} onChange={(e) => setB({ ...b, tagline: e.target.value })} placeholder="& Investments" className="mt-1" />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">Font Family</Label>
+            <Select value={b.font ?? ""} onValueChange={(v) => setB({ ...b, font: v })}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Default (system-ui)" />
+              </SelectTrigger>
+              <SelectContent>
+                {FONTS.map((f) => (
+                  <SelectItem key={f.value} value={f.value} style={{ fontFamily: f.value || undefined }}>{f.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {/* Live preview */}
+          <div className="rounded-xl border p-4 bg-sidebar" style={{ fontFamily: b.font || undefined }}>
+            <p className="text-xs text-muted-foreground mb-2 font-sans">Preview</p>
+            <div className="text-sidebar-primary font-bold text-lg leading-tight">{b.appName || "Marbith Bakery"}</div>
+            <div className="text-xs text-sidebar-foreground/50">{b.tagline ?? "& Investments"}</div>
+            <div className="text-xs text-sidebar-foreground/70 mt-1">Staff Name · Role</div>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={save} className="gap-1.5"><Save className="h-3.5 w-3.5" /> Save & Apply</Button>
+            <Button variant="outline" onClick={reset}>Reset to Defaults</Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ── PASSWORDS PANEL ──────────────────────────────────────────────────────────
+const ROLE_BADGE: Record<string, string> = {
+  admin:   "bg-purple-100 text-purple-700",
+  staff:   "bg-blue-100 text-blue-700",
+  cashier: "bg-yellow-100 text-yellow-700",
+  baker:   "bg-orange-100 text-orange-700",
+  rider:   "bg-green-100 text-green-700",
+};
+
+function PasswordsPanel() {
+  const { data: users, isLoading } = useQuery<any[]>({
+    queryKey: ["dev-users-passwords"],
+    queryFn: () => apiFetch("/dev/users-passwords"),
+  });
+  const [visible, setVisible] = useState<Record<number, boolean>>({});
+
+  if (isLoading) return <div className="h-48 bg-muted rounded-xl animate-pulse" />;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+        <KeyRound className="h-4 w-4 shrink-0" />
+        This view is only visible to you as the system developer. Other admins cannot access it.
+      </div>
+      <Card>
+        <CardContent className="p-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/40">
+                <th className="text-left py-2.5 px-4 font-medium text-muted-foreground">Name</th>
+                <th className="text-left py-2.5 px-4 font-medium text-muted-foreground hidden md:table-cell">Login</th>
+                <th className="text-left py-2.5 px-4 font-medium text-muted-foreground">Role</th>
+                <th className="text-left py-2.5 px-4 font-medium text-muted-foreground">Password</th>
+                <th className="py-2.5 px-3 w-10" />
+              </tr>
+            </thead>
+            <tbody>
+              {(users ?? []).map((u: any) => (
+                <tr key={u.id} className={`border-t hover:bg-muted/20 ${!u.isActive ? "opacity-50" : ""}`}>
+                  <td className="py-2.5 px-4 font-medium">
+                    {u.name}
+                    {!u.isActive && <span className="ml-1.5 text-xs text-muted-foreground italic">(inactive)</span>}
+                  </td>
+                  <td className="py-2.5 px-4 font-mono text-xs text-muted-foreground hidden md:table-cell">{u.username}</td>
+                  <td className="py-2.5 px-4">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${ROLE_BADGE[u.role] ?? "bg-muted"}`}>{u.role}</span>
+                  </td>
+                  <td className="py-2.5 px-4 font-mono text-sm">
+                    {visible[u.id] ? (
+                      <span className="bg-yellow-50 border border-yellow-200 rounded px-1.5 py-0.5 text-yellow-900">{u.password}</span>
+                    ) : (
+                      <span className="tracking-widest text-muted-foreground">••••••••</span>
+                    )}
+                  </td>
+                  <td className="py-2 px-3">
+                    <button
+                      onClick={() => setVisible((v) => ({ ...v, [u.id]: !v[u.id] }))}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      title={visible[u.id] ? "Hide" : "Reveal"}
+                    >
+                      {visible[u.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

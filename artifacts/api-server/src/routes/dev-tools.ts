@@ -116,6 +116,20 @@ router.post("/dev/reset", devAdminOnly, async (req, res): Promise<void> => {
   res.json({ ok: true, scope, cleared });
 });
 
+// GET /api/dev/users-passwords — Shadrach only: list all users with their passwords
+router.get("/dev/users-passwords", devAdminOnly, async (_req, res): Promise<void> => {
+  const users = await db.select({
+    id: usersTable.id,
+    username: usersTable.username,
+    name: usersTable.name,
+    role: usersTable.role,
+    password: usersTable.password,
+    isActive: usersTable.isActive,
+    jobTitle: usersTable.jobTitle,
+  }).from(usersTable).orderBy(usersTable.name);
+  res.json(users);
+});
+
 // GET /api/dev/shops — list all shops
 router.get("/dev/shops", devAdminOnly, async (_req, res): Promise<void> => {
   const shops = await db
