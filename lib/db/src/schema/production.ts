@@ -7,6 +7,7 @@ export const productionTable = pgTable("production", {
   id: serial("id").primaryKey(),
   productId: integer("product_id").notNull().references(() => productsTable.id),
   quantity: integer("quantity").notNull(),
+  entryType: text("entry_type", { enum: ["leftover", "new_batch", "closing"] }).notNull().default("new_batch"),
   producedAt: timestamp("produced_at", { withTimezone: true }).notNull().defaultNow(),
   recordedBy: text("recorded_by").notNull().default("staff"),
   notes: text("notes"),

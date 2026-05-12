@@ -21,6 +21,7 @@ import {
   BarChart2,
   Receipt,
   ChefHat,
+  FileBarChart,
 } from "lucide-react";
 
 interface NavItem {
@@ -44,6 +45,7 @@ const navItems: NavItem[] = [
   { href: "/payments",         label: "Payments",        icon: CreditCard,      roles: ["admin"] },
   { href: "/products",         label: "Products",        icon: Tag,             roles: ["admin"] },
   { href: "/expenses",         label: "Expenses",        icon: Receipt,         roles: ["admin", "staff", "cashier", "baker"] },
+  { href: "/daily-report",     label: "Daily Report",    icon: FileBarChart,    roles: ["admin"] },
   { href: "/users",            label: "User Management", icon: ShieldCheck,     roles: ["admin"] },
   { href: "/rider-deliveries", label: "My Deliveries",   icon: Truck,           roles: ["rider"] },
 ];

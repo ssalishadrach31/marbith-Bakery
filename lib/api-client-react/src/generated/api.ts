@@ -36,6 +36,7 @@ import type {
   Delivery,
   Employee,
   GetDailySalesSummaryParams,
+  GetProductionDailyReportParams,
   GetRevenueBreakdownParams,
   HealthStatus,
   InventoryItem,
@@ -50,6 +51,7 @@ import type {
   Order,
   Payment,
   Product,
+  ProductionDailyReport,
   ProductionRecord,
   ProductionSummary,
   RecordPaymentBody,
@@ -1043,6 +1045,109 @@ export function useGetTodayProductionSummary<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetTodayProductionSummaryQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Admin daily production + sales report per product
+ */
+export const getGetProductionDailyReportUrl = (
+  params?: GetProductionDailyReportParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/production/daily-report?${stringifiedParams}`
+    : `/api/production/daily-report`;
+};
+
+export const getProductionDailyReport = async (
+  params?: GetProductionDailyReportParams,
+  options?: RequestInit,
+): Promise<ProductionDailyReport> => {
+  return customFetch<ProductionDailyReport>(
+    getGetProductionDailyReportUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetProductionDailyReportQueryKey = (
+  params?: GetProductionDailyReportParams,
+) => {
+  return [`/api/production/daily-report`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetProductionDailyReportQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProductionDailyReport>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetProductionDailyReportParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProductionDailyReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetProductionDailyReportQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getProductionDailyReport>>
+  > = ({ signal }) =>
+    getProductionDailyReport(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProductionDailyReport>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetProductionDailyReportQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProductionDailyReport>>
+>;
+export type GetProductionDailyReportQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Admin daily production + sales report per product
+ */
+
+export function useGetProductionDailyReport<
+  TData = Awaited<ReturnType<typeof getProductionDailyReport>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetProductionDailyReportParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProductionDailyReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetProductionDailyReportQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

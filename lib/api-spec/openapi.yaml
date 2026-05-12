@@ -233,6 +233,24 @@ paths:
                 items:
                   $ref: "#/components/schemas/ProductionSummary"
 
+  /production/daily-report:
+    get:
+      operationId: getProductionDailyReport
+      tags: [production]
+      summary: Admin daily production + sales report per product
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Daily report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductionDailyReport"
+
   # INVENTORY
   /inventory:
     get:
@@ -979,6 +997,9 @@ components:
           type: string
         quantity:
           type: integer
+        entryType:
+          type: string
+          enum: [leftover, new_batch, closing]
         producedAt:
           type: string
         recordedBy:
@@ -986,7 +1007,7 @@ components:
         notes:
           type: string
           nullable: true
-      required: [id, productId, productName, quantity, producedAt, recordedBy]
+      required: [id, productId, productName, quantity, entryType, producedAt, recordedBy]
 
     CreateProductionBody:
       type: object
@@ -995,9 +1016,12 @@ components:
           type: integer
         quantity:
           type: integer
+        entryType:
+          type: string
+          enum: [leftover, new_batch, closing]
         notes:
           type: string
-      required: [productId, quantity]
+      required: [productId, quantity, entryType]
 
     ProductionSummary:
       type: object
@@ -1009,6 +1033,65 @@ components:
         totalProduced:
           type: integer
       required: [productId, productName, totalProduced]
+
+    ProductionDailyReportRow:
+      type: object
+      properties:
+        productId:
+          type: integer
+        productName:
+          type: string
+        leftover:
+          type: integer
+        newBatch:
+          type: integer
+        opening:
+          type: integer
+        closing:
+          type: integer
+        sold:
+          type: integer
+        revenue:
+          type: number
+      required: [productId, productName, leftover, newBatch, opening, closing, sold, revenue]
+
+    DailySaleRow:
+      type: object
+      properties:
+        id:
+          type: integer
+        receiptNumber:
+          type: string
+        totalAmount:
+          type: number
+        paymentMethod:
+          type: string
+        soldBy:
+          type: string
+        soldAt:
+          type: string
+        itemCount:
+          type: integer
+      required: [id, receiptNumber, totalAmount, paymentMethod, soldBy, soldAt, itemCount]
+
+    ProductionDailyReport:
+      type: object
+      properties:
+        date:
+          type: string
+        productRows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductionDailyReportRow"
+        sales:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailySaleRow"
+        totalRevenue:
+          type: number
+        totalUnitsSold:
+          type: integer
+      required: [date, productRows, sales, totalRevenue, totalUnitsSold]
 
     InventoryItem:
       type: object

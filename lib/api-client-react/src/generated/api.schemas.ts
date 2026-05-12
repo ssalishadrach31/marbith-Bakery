@@ -55,19 +55,39 @@ export interface CreateProductBody {
   isActive?: boolean;
 }
 
+export type ProductionRecordEntryType =
+  (typeof ProductionRecordEntryType)[keyof typeof ProductionRecordEntryType];
+
+export const ProductionRecordEntryType = {
+  leftover: "leftover",
+  new_batch: "new_batch",
+  closing: "closing",
+} as const;
+
 export interface ProductionRecord {
   id: number;
   productId: number;
   productName: string;
   quantity: number;
+  entryType: ProductionRecordEntryType;
   producedAt: string;
   recordedBy: string;
   notes?: string | null;
 }
 
+export type CreateProductionBodyEntryType =
+  (typeof CreateProductionBodyEntryType)[keyof typeof CreateProductionBodyEntryType];
+
+export const CreateProductionBodyEntryType = {
+  leftover: "leftover",
+  new_batch: "new_batch",
+  closing: "closing",
+} as const;
+
 export interface CreateProductionBody {
   productId: number;
   quantity: number;
+  entryType: CreateProductionBodyEntryType;
   notes?: string;
 }
 
@@ -75,6 +95,35 @@ export interface ProductionSummary {
   productId: number;
   productName: string;
   totalProduced: number;
+}
+
+export interface ProductionDailyReportRow {
+  productId: number;
+  productName: string;
+  leftover: number;
+  newBatch: number;
+  opening: number;
+  closing: number;
+  sold: number;
+  revenue: number;
+}
+
+export interface DailySaleRow {
+  id: number;
+  receiptNumber: string;
+  totalAmount: number;
+  paymentMethod: string;
+  soldBy: string;
+  soldAt: string;
+  itemCount: number;
+}
+
+export interface ProductionDailyReport {
+  date: string;
+  productRows: ProductionDailyReportRow[];
+  sales: DailySaleRow[];
+  totalRevenue: number;
+  totalUnitsSold: number;
 }
 
 export interface InventoryItem {
@@ -484,6 +533,10 @@ export interface ActivityItem {
 }
 
 export type ListProductionParams = {
+  date?: string;
+};
+
+export type GetProductionDailyReportParams = {
   date?: string;
 };
 

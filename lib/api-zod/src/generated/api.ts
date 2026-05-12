@@ -135,6 +135,7 @@ export const ListProductionResponseItem = zod.object({
   productId: zod.number(),
   productName: zod.string(),
   quantity: zod.number(),
+  entryType: zod.enum(["leftover", "new_batch", "closing"]),
   producedAt: zod.string(),
   recordedBy: zod.string(),
   notes: zod.string().nullish(),
@@ -147,6 +148,7 @@ export const ListProductionResponse = zod.array(ListProductionResponseItem);
 export const CreateProductionBody = zod.object({
   productId: zod.number(),
   quantity: zod.number(),
+  entryType: zod.enum(["leftover", "new_batch", "closing"]),
   notes: zod.string().optional(),
 });
 
@@ -161,6 +163,42 @@ export const GetTodayProductionSummaryResponseItem = zod.object({
 export const GetTodayProductionSummaryResponse = zod.array(
   GetTodayProductionSummaryResponseItem,
 );
+
+/**
+ * @summary Admin daily production + sales report per product
+ */
+export const GetProductionDailyReportQueryParams = zod.object({
+  date: zod.coerce.string().optional(),
+});
+
+export const GetProductionDailyReportResponse = zod.object({
+  date: zod.string(),
+  productRows: zod.array(
+    zod.object({
+      productId: zod.number(),
+      productName: zod.string(),
+      leftover: zod.number(),
+      newBatch: zod.number(),
+      opening: zod.number(),
+      closing: zod.number(),
+      sold: zod.number(),
+      revenue: zod.number(),
+    }),
+  ),
+  sales: zod.array(
+    zod.object({
+      id: zod.number(),
+      receiptNumber: zod.string(),
+      totalAmount: zod.number(),
+      paymentMethod: zod.string(),
+      soldBy: zod.string(),
+      soldAt: zod.string(),
+      itemCount: zod.number(),
+    }),
+  ),
+  totalRevenue: zod.number(),
+  totalUnitsSold: zod.number(),
+});
 
 /**
  * @summary List inventory levels
