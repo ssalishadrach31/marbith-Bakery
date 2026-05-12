@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
-import { db, productionTable, productsTable, salesTable, saleItemsTable, inventoryTable } from "@workspace/db";
+import { db, productionTable, productsTable, salesTable, saleItemsTable, inventoryTable, shopReceiptsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -18,7 +18,7 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
 
   const today = new Date().toISOString().split("T")[0];
 
-  // 1. Today's production entries (detailed)
+  // 1. Today's production entries (detailed log)
   const productionEntries = await db
     .select({
       id: productionTable.id,
@@ -47,7 +47,37 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     .where(sql`DATE(${productionTable.producedAt}) = ${today}`)
     .groupBy(productionTable.productId, productsTable.name, productsTable.price);
 
-  // 3. Today's sales transactions
+  // 3. Shop receipts today (what cashier confirmed receiving)
+  const receiptEntries = await db
+    .select({
+      id: shopReceiptsTable.id,
+      productId: shopReceiptsTable.productId,
+      productName: productsTable.name,
+      price: productsTable.price,
+      quantityReceived: shopReceiptsTable.quantityReceived,
+      receivedBy: shopReceiptsTable.receivedBy,
+      receivedAt: shopReceiptsTable.receivedAt,
+      notes: shopReceiptsTable.notes,
+    })
+    .from(shopReceiptsTable)
+    .leftJoin(productsTable, eq(shopReceiptsTable.productId, productsTable.id))
+    .where(sql`DATE(${shopReceiptsTable.receivedAt}) = ${today}`)
+    .orderBy(shopReceiptsTable.receivedAt);
+
+  // 4. Shop receipts summary per product today
+  const receiptsByProduct = await db
+    .select({
+      productId: shopReceiptsTable.productId,
+      productName: productsTable.name,
+      price: productsTable.price,
+      totalReceived: sql<number>`SUM(${shopReceiptsTable.quantityReceived})::int`,
+    })
+    .from(shopReceiptsTable)
+    .leftJoin(productsTable, eq(shopReceiptsTable.productId, productsTable.id))
+    .where(sql`DATE(${shopReceiptsTable.receivedAt}) = ${today}`)
+    .groupBy(shopReceiptsTable.productId, productsTable.name, productsTable.price);
+
+  // 5. Today's sales transactions
   const salesTransactions = await db
     .select({
       id: salesTable.id,
@@ -64,7 +94,7 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     .groupBy(salesTable.id)
     .orderBy(salesTable.soldAt);
 
-  // 4. Sales by person today
+  // 6. Sales by person today
   const salesByPerson = await db
     .select({
       soldBy: salesTable.soldBy,
@@ -73,9 +103,10 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     })
     .from(salesTable)
     .where(sql`DATE(${salesTable.soldAt}) = ${today}`)
-    .groupBy(salesTable.soldBy);
+    .groupBy(salesTable.soldBy)
+    .orderBy(sql`SUM(${salesTable.totalAmount}) DESC`);
 
-  // 5. Sales by product today
+  // 7. Sales by product today
   const salesByProduct = await db
     .select({
       productId: saleItemsTable.productId,
@@ -90,7 +121,7 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     .groupBy(saleItemsTable.productId, productsTable.name)
     .orderBy(sql`SUM(${saleItemsTable.subtotal}) DESC`);
 
-  // 6. Current inventory with price for value calculation
+  // 8. Current inventory
   const inventory = await db
     .select({
       productId: inventoryTable.productId,
@@ -102,29 +133,71 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     .leftJoin(productsTable, eq(inventoryTable.productId, productsTable.id))
     .orderBy(productsTable.name);
 
-  // Calculations
+  // Summaries
   const totalRevenue = salesTransactions.reduce((s, t) => s + (t.totalAmount ?? 0), 0);
-  const totalProducedValue = productionByProduct.reduce((s, p) => s + ((p.totalProduced ?? 0) * (p.price ?? 0)), 0);
-  const remainingStockValue = inventory.reduce((s, i) => s + ((i.currentStock ?? 0) * (i.price ?? 0)), 0);
+  const totalReceived = receiptsByProduct.reduce((s, r) => s + (r.totalReceived ?? 0), 0);
+  const totalProduced = productionByProduct.reduce((s, p) => s + (p.totalProduced ?? 0), 0);
+  const totalSoldUnits = (salesByProduct as any[]).reduce((s, p) => s + (p.qtySold ?? 0), 0);
+  const remainingStock = inventory.reduce((s, i) => s + (i.currentStock ?? 0), 0);
+
+  // Build accountability per cashier: received units attributed to them (from receipts) + expected cash from sales
+  const cashierAccounts = salesByPerson.map((person) => {
+    const theirReceipts = receiptEntries
+      .filter((r) => r.receivedBy === person.soldBy)
+      .reduce((s, r) => s + (r.quantityReceived ?? 0), 0);
+    return {
+      name: person.soldBy,
+      transactions: person.transactions ?? 0,
+      totalSales: person.totalAmount ?? 0,
+      unitsReceivedFromBakery: theirReceipts,
+    };
+  });
+
+  // Add people who received goods but have no sales yet
+  const salesNames = new Set(salesByPerson.map((p) => p.soldBy));
+  const receiversOnly = [...new Set(receiptEntries.map((r) => r.receivedBy))]
+    .filter((name) => !salesNames.has(name))
+    .map((name) => ({
+      name,
+      transactions: 0,
+      totalSales: 0,
+      unitsReceivedFromBakery: receiptEntries
+        .filter((r) => r.receivedBy === name)
+        .reduce((s, r) => s + (r.quantityReceived ?? 0), 0),
+    }));
 
   res.json({
     date: today,
     production: {
       entries: productionEntries.map((e) => ({ ...e, productName: e.productName ?? "Unknown" })),
       byProduct: productionByProduct.map((p) => ({ ...p, productName: p.productName ?? "Unknown", totalProduced: p.totalProduced ?? 0 })),
+      totalUnits: totalProduced,
+    },
+    receipts: {
+      entries: receiptEntries.map((r) => ({ ...r, productName: r.productName ?? "Unknown" })),
+      byProduct: receiptsByProduct.map((r) => ({ ...r, productName: r.productName ?? "Unknown", totalReceived: r.totalReceived ?? 0 })),
+      totalReceived,
     },
     sales: {
       transactions: salesTransactions.map((t) => ({ ...t, itemCount: t.itemCount ?? 0 })),
       byPerson: salesByPerson.map((p) => ({ soldBy: p.soldBy, transactions: p.transactions ?? 0, totalAmount: p.totalAmount ?? 0 })),
-      byProduct: salesByProduct.map((p) => ({ ...p, productName: p.productName ?? "Unknown", qtySold: p.qtySold ?? 0, revenue: p.revenue ?? 0 })),
+      byProduct: (salesByProduct as any[]).map((p) => ({ ...p, productName: p.productName ?? "Unknown", qtySold: p.qtySold ?? 0, revenue: p.revenue ?? 0 })),
       totalRevenue,
+      totalSoldUnits,
       transactionCount: salesTransactions.length,
     },
-    inventory: inventory.map((i) => ({ ...i, productName: i.productName ?? "Unknown", stockValue: (i.currentStock ?? 0) * (i.price ?? 0) })),
-    summary: {
-      totalProducedValue,
-      totalRevenue,
-      remainingStockValue,
+    inventory: inventory.map((i) => ({
+      ...i,
+      productName: i.productName ?? "Unknown",
+      stockValue: (i.currentStock ?? 0) * (i.price ?? 0),
+    })),
+    accountability: {
+      cashiers: [...cashierAccounts, ...receiversOnly],
+      combinedRevenue: totalRevenue,
+      totalProduced,
+      totalReceived,
+      totalSoldUnits,
+      remainingStock,
     },
   });
 });
