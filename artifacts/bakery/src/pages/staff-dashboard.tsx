@@ -339,6 +339,7 @@ export default function StaffDashboardPage() {
 
   const iceCreamEntries = buildCountEntries("ice_cream");
   const juiceEntries = buildCountEntries("juice");
+  const coffeeEntries = buildCountEntries("coffee");
 
   // Drinks sold today via POS
   const drinksSoldToday = sales.byProduct.filter((p: any) =>
@@ -347,15 +348,16 @@ export default function StaffDashboardPage() {
   const drinkRevenue = drinksSoldToday.reduce((s: number, p: any) => s + (p.revenue ?? 0), 0);
 
   // Daily counts total revenue
-  const iceCreamRevenue = iceCreamEntries.reduce((s, e) => {
-    const sold = e.opening !== undefined && e.closing !== undefined ? Math.max(0, e.opening - e.closing) : 0;
-    return s + sold * e.price;
-  }, 0);
-  const juiceRevenue = juiceEntries.reduce((s, e) => {
-    const sold = e.opening !== undefined && e.closing !== undefined ? Math.max(0, e.opening - e.closing) : 0;
-    return s + sold * e.price;
-  }, 0);
-  const grandTotal = sales.totalRevenue + iceCreamRevenue + juiceRevenue;
+  const calcRevenue = (entries: CountEntry[]) =>
+    entries.reduce((s, e) => {
+      const sold = e.opening !== undefined && e.closing !== undefined ? Math.max(0, e.opening - e.closing) : 0;
+      return s + sold * e.price;
+    }, 0);
+
+  const iceCreamRevenue = calcRevenue(iceCreamEntries);
+  const juiceRevenue = calcRevenue(juiceEntries);
+  const coffeeRevenue = calcRevenue(coffeeEntries);
+  const grandTotal = sales.totalRevenue + iceCreamRevenue + juiceRevenue + coffeeRevenue;
 
   return (
     <div className="space-y-5">
@@ -589,10 +591,20 @@ export default function StaffDashboardPage() {
 
       {/* ── JUICE COUNT ── */}
       <CountSection
-        title="Juice Count"
+        title="Juice Count — Small Tins & Big Tins"
         icon={<Droplets className="h-4 w-4" />}
         entries={juiceEntries}
         color="orange"
+        onSave={handleSaveCount}
+        isSaving={saveCountMutation.isPending}
+      />
+
+      {/* ── COFFEE / TEA COUNT ── */}
+      <CountSection
+        title="Coffee & Tea Count"
+        icon={<Coffee className="h-4 w-4" />}
+        entries={coffeeEntries}
+        color="amber"
         onSave={handleSaveCount}
         isSaving={saveCountMutation.isPending}
       />
@@ -704,24 +716,36 @@ export default function StaffDashboardPage() {
           )}
 
           {/* Ice cream + juice count totals summary */}
-          {(iceCreamRevenue > 0 || juiceRevenue > 0) && (
+          {(iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0) && (
             <div className="mb-4 space-y-2">
-              <p className="text-sm font-semibold text-muted-foreground">Additional Counted Sales</p>
+              <p className="text-sm font-semibold text-muted-foreground">Counted Sales Summary</p>
+              {sales.totalRevenue > 0 && (
+                <div className="flex justify-between text-sm px-3 py-2 bg-purple-50 border border-purple-100 rounded-lg">
+                  <span className="flex items-center gap-2"><ShoppingCart className="h-4 w-4 text-purple-500" /> POS Sales (Baked Goods + Drinks)</span>
+                  <span className="font-bold text-purple-700">{formatUGX(sales.totalRevenue)}</span>
+                </div>
+              )}
               {iceCreamRevenue > 0 && (
                 <div className="flex justify-between text-sm px-3 py-2 bg-pink-50 border border-pink-100 rounded-lg">
-                  <span className="flex items-center gap-2"><IceCream className="h-4 w-4 text-pink-500" /> Ice Cream</span>
+                  <span className="flex items-center gap-2"><IceCream className="h-4 w-4 text-pink-500" /> Ice Cream (Cones + Tins)</span>
                   <span className="font-bold text-pink-700">{formatUGX(iceCreamRevenue)}</span>
                 </div>
               )}
               {juiceRevenue > 0 && (
                 <div className="flex justify-between text-sm px-3 py-2 bg-orange-50 border border-orange-100 rounded-lg">
-                  <span className="flex items-center gap-2"><Droplets className="h-4 w-4 text-orange-500" /> Juice</span>
+                  <span className="flex items-center gap-2"><Droplets className="h-4 w-4 text-orange-500" /> Juice (Small + Big Tins)</span>
                   <span className="font-bold text-orange-700">{formatUGX(juiceRevenue)}</span>
                 </div>
               )}
-              <div className="flex justify-between items-center px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg font-bold">
-                <span>Grand Total (POS + Ice Cream + Juice)</span>
-                <span className="text-primary text-lg">{formatUGX(grandTotal)}</span>
+              {coffeeRevenue > 0 && (
+                <div className="flex justify-between text-sm px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg">
+                  <span className="flex items-center gap-2"><Coffee className="h-4 w-4 text-amber-600" /> Coffee &amp; Tea</span>
+                  <span className="font-bold text-amber-700">{formatUGX(coffeeRevenue)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center px-3 py-3 bg-primary/5 border border-primary/20 rounded-lg font-bold">
+                <span className="text-sm">Grand Total</span>
+                <span className="text-primary text-xl">{formatUGX(grandTotal)}</span>
               </div>
             </div>
           )}
