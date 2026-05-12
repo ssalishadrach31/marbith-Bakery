@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Receipt, Plus, CheckCircle2, XCircle, Clock,
   ChevronLeft, ChevronRight, BarChart2, Trash2, FileText,
+  ShieldCheck, ShieldAlert, UserCheck,
 } from "lucide-react";
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -45,13 +46,36 @@ const CAT_COLORS: Record<string, string> = {
   other:       "bg-gray-100 text-gray-600 border-gray-200",
 };
 
-const STATUS_STYLES: Record<string, string> = {
-  pending:  "bg-yellow-100 text-yellow-700 border-yellow-200",
-  approved: "bg-green-100 text-green-700 border-green-200",
-  rejected: "bg-red-100 text-red-600 border-red-200",
-};
-
 function catLabel(c: string) { return CATEGORIES.find((x) => x.value === c)?.label ?? c; }
+
+function StatusBadge({ status, firstApprovedBy }: { status: string; firstApprovedBy?: string | null }) {
+  if (status === "pending") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium bg-yellow-100 text-yellow-700 border-yellow-200">
+        <Clock className="h-3 w-3" /> Pending
+      </span>
+    );
+  }
+  if (status === "awaiting_second") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium bg-blue-100 text-blue-700 border-blue-200" title={`First approval by ${firstApprovedBy}`}>
+        <ShieldAlert className="h-3 w-3" /> 1 of 2 Approved
+      </span>
+    );
+  }
+  if (status === "approved") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium bg-green-100 text-green-700 border-green-200">
+        <ShieldCheck className="h-3 w-3" /> Fully Approved
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium bg-red-100 text-red-600 border-red-200">
+      <XCircle className="h-3 w-3" /> Rejected
+    </span>
+  );
+}
 
 export default function ExpensesPage() {
   const user = getUser();
@@ -62,7 +86,7 @@ export default function ExpensesPage() {
   const [tab, setTab] = useState<"pending" | "all" | "report">(isAdmin ? "pending" : "all");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ amount: "", description: "", category: "other", expenseDate: new Date().toISOString().split("T")[0] });
-  const [reviewModal, setReviewModal] = useState<{ id: number; desc: string } | null>(null);
+  const [reviewModal, setReviewModal] = useState<{ id: number; desc: string; status: string; firstApprovedBy: string | null } | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
   const [deleteModal, setDeleteModal] = useState<{ id: number; desc: string } | null>(null);
 
@@ -98,7 +122,7 @@ export default function ExpensesPage() {
     mutationFn: (data: object) => apiFetch("/expenses", { method: "POST", body: JSON.stringify(data) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["expenses"] });
-      toast({ title: "Expense submitted", description: "Waiting for admin approval" });
+      toast({ title: "Expense submitted", description: "Waiting for 2 admin approvals" });
       setForm({ amount: "", description: "", category: "other", expenseDate: new Date().toISOString().split("T")[0] });
       setShowForm(false);
     },
@@ -106,12 +130,18 @@ export default function ExpensesPage() {
   });
 
   const reviewMutation = useMutation({
-    mutationFn: ({ id, status, notes }: { id: number; status: string; notes: string }) =>
-      apiFetch(`/expenses/${id}/review`, { method: "PATCH", body: JSON.stringify({ status, reviewNotes: notes }) }),
-    onSuccess: (_, vars) => {
+    mutationFn: ({ id, action, notes }: { id: number; action: string; notes: string }) =>
+      apiFetch(`/expenses/${id}/review`, { method: "PATCH", body: JSON.stringify({ action, reviewNotes: notes }) }),
+    onSuccess: (result: any, vars) => {
       qc.invalidateQueries({ queryKey: ["expenses"] });
       qc.invalidateQueries({ queryKey: ["expenses-report"] });
-      toast({ title: vars.status === "approved" ? "Expense approved ✓" : "Expense rejected", variant: vars.status === "approved" ? "default" : "destructive" });
+      if (vars.action === "reject") {
+        toast({ title: "Expense rejected", variant: "destructive" });
+      } else if (result.status === "awaiting_second") {
+        toast({ title: "First approval recorded", description: "Waiting for a second admin to approve." });
+      } else {
+        toast({ title: "Expense fully approved ✓" });
+      }
       setReviewModal(null);
       setReviewNotes("");
     },
@@ -128,20 +158,71 @@ export default function ExpensesPage() {
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  const pending = (expenses ?? []).filter((e) => e.status === "pending");
-  const allList = (expenses ?? []);
+  const allList = expenses ?? [];
   const myList = allList.filter((e) => e.submittedBy === user?.name);
+  // "pending" tab shows both stages that still need action
+  const needsAction = allList.filter((e) => e.status === "pending" || e.status === "awaiting_second");
+  // Expenses where current admin can act: pending (anyone), awaiting_second (different admin only)
+  const actionable = needsAction.filter((e) =>
+    e.status === "pending" || (e.status === "awaiting_second" && e.firstApprovedBy !== user?.name)
+  );
+  // Waiting for other admin (current admin already gave first approval)
+  const waitingForMe = needsAction.filter((e) =>
+    e.status === "awaiting_second" && e.firstApprovedBy === user?.name
+  );
 
-  const todayApproved = (expenses ?? [])
+  const todayApproved = allList
     .filter((e) => e.status === "approved" && e.expenseDate === new Date().toISOString().split("T")[0])
     .reduce((s: number, e: any) => s + e.amount, 0);
 
+  // Can current admin approve this expense?
+  function canApprove(e: any) {
+    if (e.status === "pending") return true;
+    if (e.status === "awaiting_second") return e.firstApprovedBy !== user?.name;
+    return false;
+  }
+
+  function ApprovalTrail({ e }: { e: any }) {
+    return (
+      <div className="flex items-center gap-3 mt-1">
+        {/* Step 1 */}
+        <div className={`flex items-center gap-1 text-xs ${e.firstApprovedBy || e.status === "approved" ? "text-green-600" : "text-muted-foreground"}`}>
+          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${e.firstApprovedBy ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>1</div>
+          {e.firstApprovedBy ? (
+            <span className="font-medium">{e.firstApprovedBy}</span>
+          ) : (
+            <span>Awaiting 1st</span>
+          )}
+        </div>
+        <div className="flex-1 h-px bg-border" />
+        {/* Step 2 */}
+        <div className={`flex items-center gap-1 text-xs ${e.status === "approved" ? "text-green-600" : "text-muted-foreground"}`}>
+          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${e.status === "approved" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>2</div>
+          {e.status === "approved" && e.reviewedBy ? (
+            <span className="font-medium">{e.reviewedBy}</span>
+          ) : (
+            <span>Awaiting 2nd</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   function ExpenseRow({ e, showActions }: { e: any; showActions: boolean }) {
+    const alreadyApprovedByMe = e.status === "awaiting_second" && e.firstApprovedBy === user?.name;
+
     return (
       <tr className="border-t border-border hover:bg-muted/20">
         <td className="py-3 px-3">
           <div className="font-medium text-sm leading-snug">{e.description}</div>
           <div className="text-xs text-muted-foreground mt-0.5">{e.submittedBy} · {formatDate(e.expenseDate)}</div>
+          {/* Approval trail inline */}
+          {(e.status === "awaiting_second" || e.status === "approved") && (
+            <ApprovalTrail e={e} />
+          )}
+          {e.reviewNotes && e.status === "rejected" && (
+            <div className="text-xs text-red-500 mt-0.5 italic">"{e.reviewNotes}"</div>
+          )}
         </td>
         <td className="py-3 px-3 hidden md:table-cell">
           <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${CAT_COLORS[e.category] ?? CAT_COLORS.other}`}>
@@ -149,23 +230,27 @@ export default function ExpensesPage() {
           </span>
         </td>
         <td className="py-3 px-3 text-right font-bold text-sm">{formatUGX(e.amount)}</td>
-        <td className="py-3 px-3 text-center">
-          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_STYLES[e.status]}`}>
-            {e.status === "pending" ? "Pending" : e.status === "approved" ? "Approved" : "Rejected"}
-          </span>
+        <td className="py-3 px-3">
+          <StatusBadge status={e.status} firstApprovedBy={e.firstApprovedBy} />
         </td>
         {showActions && (
           <td className="py-3 px-3 text-right">
-            <div className="flex gap-1.5 justify-end">
-              {isAdmin && e.status === "pending" && (
-                <button
-                  onClick={() => { setReviewModal({ id: e.id, desc: e.description }); setReviewNotes(""); }}
-                  className="text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 font-medium transition-colors"
-                >
-                  Review
-                </button>
+            <div className="flex gap-1.5 justify-end items-center">
+              {isAdmin && (e.status === "pending" || e.status === "awaiting_second") && (
+                alreadyApprovedByMe ? (
+                  <span className="text-xs text-blue-500 bg-blue-50 border border-blue-100 rounded px-2 py-1 flex items-center gap-1">
+                    <UserCheck className="h-3 w-3" /> You approved — waiting for 2nd
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => { setReviewModal({ id: e.id, desc: e.description, status: e.status, firstApprovedBy: e.firstApprovedBy }); setReviewNotes(""); }}
+                    className="text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 font-medium transition-colors"
+                  >
+                    {e.status === "awaiting_second" ? "Give 2nd Approval" : "Review"}
+                  </button>
+                )
               )}
-              {e.status === "pending" && (isAdmin || e.submittedBy === user?.name) && (
+              {(e.status === "pending" || e.status === "awaiting_second") && (isAdmin || e.submittedBy === user?.name) && (
                 <button
                   onClick={() => setDeleteModal({ id: e.id, desc: e.description })}
                   className="p-1.5 rounded text-destructive hover:bg-destructive/10 transition-colors"
@@ -173,11 +258,6 @@ export default function ExpensesPage() {
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
-              )}
-              {e.reviewNotes && (
-                <span className="text-xs text-muted-foreground italic self-center max-w-32 truncate" title={e.reviewNotes}>
-                  "{e.reviewNotes}"
-                </span>
               )}
             </div>
           </td>
@@ -195,7 +275,9 @@ export default function ExpensesPage() {
             <Receipt className="h-6 w-6 text-primary" /> Expenses
           </h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            {isAdmin ? "Review staff expenses and track spending" : "Submit expenses for admin approval"}
+            {isAdmin
+              ? "Expenses require 2 different admin approvals to be finalised"
+              : "Submit expenses — 2 admin approvals required before payment"}
           </p>
         </div>
         <Button onClick={() => setShowForm(true)} className="flex items-center gap-1.5">
@@ -203,34 +285,40 @@ export default function ExpensesPage() {
         </Button>
       </div>
 
+      {/* Dual-approval notice */}
+      <div className="flex items-start gap-2 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+        <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5 text-blue-600" />
+        <div>
+          <span className="font-semibold">Two-admin approval policy</span> — Every expense must be approved by <strong>two different admins</strong> before it is considered authorised and paid. The same admin cannot approve an expense twice.
+        </div>
+      </div>
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-yellow-600">{pending.length}</div>
-            <div className="text-xs text-muted-foreground mt-0.5">Pending Review</div>
+            <div className="text-2xl font-bold text-yellow-600">{needsAction.filter(e => e.status === "pending").length}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">Awaiting 1st Approval</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {(expenses ?? []).filter((e) => e.status === "approved").length}
-            </div>
-            <div className="text-xs text-muted-foreground mt-0.5">Approved</div>
+            <div className="text-2xl font-bold text-blue-600">{needsAction.filter(e => e.status === "awaiting_second").length}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">Awaiting 2nd Approval</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <div className="text-lg font-bold text-primary">{formatUGX(todayApproved)}</div>
-            <div className="text-xs text-muted-foreground mt-0.5">Expenses Today</div>
+            <div className="text-2xl font-bold text-green-600">{allList.filter(e => e.status === "approved").length}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">Fully Approved</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-lg font-bold text-foreground">
-              {formatUGX((expenses ?? []).filter((e) => e.status === "approved" && e.expenseDate?.slice(0, 7) === new Date().toISOString().slice(0, 7)).reduce((s: number, e: any) => s + e.amount, 0))}
+              {formatUGX(allList.filter(e => e.status === "approved" && e.expenseDate?.slice(0, 7) === new Date().toISOString().slice(0, 7)).reduce((s: number, e: any) => s + e.amount, 0))}
             </div>
-            <div className="text-xs text-muted-foreground mt-0.5">This Month</div>
+            <div className="text-xs text-muted-foreground mt-0.5">This Month (Approved)</div>
           </CardContent>
         </Card>
       </div>
@@ -239,7 +327,7 @@ export default function ExpensesPage() {
       <div className="flex gap-1 border-b border-border">
         {isAdmin && (
           <button onClick={() => setTab("pending")} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === "pending" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-            Pending {pending.length > 0 && <span className="ml-1.5 bg-yellow-100 text-yellow-700 text-xs rounded-full px-1.5 py-0.5 font-bold">{pending.length}</span>}
+            Needs Action {needsAction.length > 0 && <span className="ml-1.5 bg-yellow-100 text-yellow-700 text-xs rounded-full px-1.5 py-0.5 font-bold">{needsAction.length}</span>}
           </button>
         )}
         <button onClick={() => setTab("all")} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === "all" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
@@ -252,36 +340,79 @@ export default function ExpensesPage() {
         )}
       </div>
 
-      {/* ── PENDING TAB ── */}
+      {/* ── PENDING / NEEDS ACTION TAB ── */}
       {tab === "pending" && isAdmin && (
-        <Card>
-          <CardContent className="p-0">
-            {pending.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
+        <div className="space-y-4">
+          {needsAction.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-12 text-muted-foreground">
                 <CheckCircle2 className="h-10 w-10 mx-auto mb-3 text-green-400" />
                 <p className="font-medium">All caught up!</p>
                 <p className="text-sm">No expenses waiting for approval.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-muted/40 border-b border-border">
-                      <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Description</th>
-                      <th className="text-left py-2.5 px-3 font-medium text-muted-foreground hidden md:table-cell">Category</th>
-                      <th className="text-right py-2.5 px-3 font-medium text-muted-foreground">Amount</th>
-                      <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">Status</th>
-                      <th className="text-right py-2.5 px-3 font-medium text-muted-foreground">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pending.map((e) => <ExpenseRow key={e.id} e={e} showActions />)}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Actionable by current admin */}
+              {actionable.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                    <ShieldAlert className="h-4 w-4 text-yellow-600" /> Your action required ({actionable.length})
+                  </h3>
+                  <Card>
+                    <CardContent className="p-0">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-muted/40 border-b border-border">
+                              <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Description</th>
+                              <th className="text-left py-2.5 px-3 font-medium text-muted-foreground hidden md:table-cell">Category</th>
+                              <th className="text-right py-2.5 px-3 font-medium text-muted-foreground">Amount</th>
+                              <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Status</th>
+                              <th className="text-right py-2.5 px-3 font-medium text-muted-foreground">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {actionable.map((e) => <ExpenseRow key={e.id} e={e} showActions />)}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Waiting for other admin (already approved by me) */}
+              {waitingForMe.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
+                    <UserCheck className="h-4 w-4 text-blue-500" /> Waiting for another admin ({waitingForMe.length})
+                  </h3>
+                  <Card className="opacity-70">
+                    <CardContent className="p-0">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-muted/40 border-b border-border">
+                              <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Description</th>
+                              <th className="text-left py-2.5 px-3 font-medium text-muted-foreground hidden md:table-cell">Category</th>
+                              <th className="text-right py-2.5 px-3 font-medium text-muted-foreground">Amount</th>
+                              <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Status</th>
+                              <th className="text-right py-2.5 px-3 font-medium text-muted-foreground">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {waitingForMe.map((e) => <ExpenseRow key={e.id} e={e} showActions />)}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       )}
 
       {/* ── ALL / MY EXPENSES TAB ── */}
@@ -304,7 +435,7 @@ export default function ExpensesPage() {
                       <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Description</th>
                       <th className="text-left py-2.5 px-3 font-medium text-muted-foreground hidden md:table-cell">Category</th>
                       <th className="text-right py-2.5 px-3 font-medium text-muted-foreground">Amount</th>
-                      <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">Status</th>
+                      <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Status</th>
                       <th className="text-right py-2.5 px-3 font-medium text-muted-foreground">Actions</th>
                     </tr>
                   </thead>
@@ -321,7 +452,6 @@ export default function ExpensesPage() {
       {/* ── MONTHLY REPORT TAB ── */}
       {tab === "report" && isAdmin && (
         <div className="space-y-4">
-          {/* Month picker */}
           <div className="flex items-center gap-3 justify-center">
             <button onClick={prevMonth} className="p-2 rounded-lg border border-border hover:bg-muted transition-colors">
               <ChevronLeft className="h-4 w-4" />
@@ -336,14 +466,13 @@ export default function ExpensesPage() {
             <div className="text-center py-8 text-muted-foreground">Loading report...</div>
           ) : (
             <>
-              {/* Summary */}
               <div className="grid grid-cols-3 gap-3">
                 <Card className="col-span-2">
                   <CardContent className="p-4">
                     <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Total Approved Expenses</div>
                     <div className="text-3xl font-bold text-destructive">{formatUGX(report.totalApproved)}</div>
                     {report.pendingCount > 0 && (
-                      <div className="text-xs text-yellow-600 mt-1">+ {report.pendingCount} pending not yet included</div>
+                      <div className="text-xs text-yellow-600 mt-1">+ {report.pendingCount} pending/awaiting approval not included</div>
                     )}
                   </CardContent>
                 </Card>
@@ -355,7 +484,6 @@ export default function ExpensesPage() {
                 </Card>
               </div>
 
-              {/* By category */}
               {report.byCategory.length > 0 && (
                 <Card>
                   <CardContent className="p-4">
@@ -383,7 +511,6 @@ export default function ExpensesPage() {
                 </Card>
               )}
 
-              {/* By person */}
               {report.byPerson.length > 0 && (
                 <Card>
                   <CardContent className="p-4">
@@ -408,7 +535,6 @@ export default function ExpensesPage() {
                 </Card>
               )}
 
-              {/* Full list */}
               {report.entries?.length > 0 && (
                 <Card>
                   <CardContent className="p-4">
@@ -423,6 +549,7 @@ export default function ExpensesPage() {
                             <th className="text-left py-2 font-medium text-muted-foreground">Description</th>
                             <th className="text-left py-2 font-medium text-muted-foreground hidden md:table-cell">Category</th>
                             <th className="text-left py-2 font-medium text-muted-foreground">By</th>
+                            <th className="text-left py-2 font-medium text-muted-foreground hidden md:table-cell">Approvals</th>
                             <th className="text-right py-2 font-medium text-muted-foreground">Amount</th>
                           </tr>
                         </thead>
@@ -437,11 +564,17 @@ export default function ExpensesPage() {
                                 </span>
                               </td>
                               <td className="py-2 text-sm text-muted-foreground">{e.submittedBy}</td>
+                              <td className="py-2 hidden md:table-cell">
+                                <div className="text-xs text-muted-foreground">
+                                  <div>1st: {e.firstApprovedBy ?? "—"}</div>
+                                  <div>2nd: {e.reviewedBy ?? "—"}</div>
+                                </div>
+                              </td>
                               <td className="py-2 text-right font-semibold">{formatUGX(e.amount)}</td>
                             </tr>
                           ))}
                           <tr className="border-t-2 border-border font-bold bg-muted/30">
-                            <td colSpan={4} className="py-2.5 px-0 text-sm">Total</td>
+                            <td colSpan={5} className="py-2.5 px-0 text-sm">Total</td>
                             <td className="py-2.5 text-right text-destructive">{formatUGX(report.totalApproved)}</td>
                           </tr>
                         </tbody>
@@ -462,7 +595,7 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      {/* Submit Expense Dialog */}
+      {/* ── Submit Expense Dialog ── */}
       <Dialog open={showForm} onOpenChange={(v) => { setShowForm(v); if (!v) setForm({ amount: "", description: "", category: "other", expenseDate: new Date().toISOString().split("T")[0] }); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -478,7 +611,7 @@ export default function ExpensesPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Amount (UGX)</Label>
-                <Input className="mt-1" type="number" min="1" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="e.g. 50000" required />
+                <Input className="mt-1" type="number" min="1" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0" required />
               </div>
               <div>
                 <Label>Date</Label>
@@ -494,80 +627,94 @@ export default function ExpensesPage() {
                 </SelectContent>
               </Select>
             </div>
-            <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg p-3">
-              This will be sent to the admin for approval before it affects any reports.
-            </p>
-            <div className="flex gap-2 justify-end">
+            <div className="flex items-start gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded p-2">
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              This expense will require approval from 2 different admins before it is authorised.
+            </div>
+            <div className="flex gap-2 justify-end pt-1">
               <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
               <Button type="submit" disabled={submitMutation.isPending}>
-                {submitMutation.isPending ? "Submitting..." : "Submit for Approval"}
+                {submitMutation.isPending ? "Submitting…" : "Submit Expense"}
               </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Review Dialog */}
-      <Dialog open={!!reviewModal} onOpenChange={(v) => { if (!v) { setReviewModal(null); setReviewNotes(""); } }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Review Expense</DialogTitle>
-          </DialogHeader>
-          {reviewModal && (
+      {/* ── Review Dialog ── */}
+      {reviewModal && (
+        <Dialog open onOpenChange={() => { setReviewModal(null); setReviewNotes(""); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-primary" />
+                {reviewModal.status === "awaiting_second" ? "Give 2nd Approval" : "Review Expense"}
+              </DialogTitle>
+            </DialogHeader>
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground bg-muted/40 rounded-lg p-3">"{reviewModal.desc}"</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                <span className="font-semibold text-foreground">{reviewModal.desc}</span>
+              </p>
+
+              {/* Approval context */}
+              <div className="rounded-lg border border-border p-3 text-sm space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${reviewModal.firstApprovedBy ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}`}>1</div>
+                  <span className="text-muted-foreground">1st approval:</span>
+                  <span className="font-medium">{reviewModal.firstApprovedBy ?? "Not yet given"}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-xs font-bold">2</div>
+                  <span className="text-muted-foreground">2nd approval:</span>
+                  <span className="font-medium text-primary">You ({user?.name})</span>
+                </div>
+              </div>
+
               <div>
                 <Label>Notes (optional)</Label>
-                <Input className="mt-1" value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} placeholder="Reason for rejection, or leave blank" />
+                <Input className="mt-1" value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} placeholder="Any notes about this expense..." />
               </div>
+
               <div className="flex gap-2">
                 <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  className="flex-1"
+                  onClick={() => reviewMutation.mutate({ id: reviewModal.id, action: "approve", notes: reviewNotes })}
                   disabled={reviewMutation.isPending}
-                  onClick={() => reviewMutation.mutate({ id: reviewModal.id, status: "approved", notes: reviewNotes })}
                 >
-                  <CheckCircle2 className="h-4 w-4 mr-1.5" /> Approve
+                  <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                  {reviewModal.status === "awaiting_second" ? "Fully Approve" : "1st Approval"}
                 </Button>
                 <Button
                   variant="destructive"
                   className="flex-1"
+                  onClick={() => reviewMutation.mutate({ id: reviewModal.id, action: "reject", notes: reviewNotes })}
                   disabled={reviewMutation.isPending}
-                  onClick={() => reviewMutation.mutate({ id: reviewModal.id, status: "rejected", notes: reviewNotes })}
                 >
                   <XCircle className="h-4 w-4 mr-1.5" /> Reject
                 </Button>
               </div>
-              <Button variant="outline" className="w-full" onClick={() => { setReviewModal(null); setReviewNotes(""); }}>Cancel</Button>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteModal} onOpenChange={(v) => { if (!v) setDeleteModal(null); }}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-destructive">Delete Expense?</DialogTitle>
-          </DialogHeader>
-          {deleteModal && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">Are you sure you want to delete this expense?</p>
-              <p className="text-sm font-medium bg-muted/40 rounded-lg p-3">"{deleteModal.desc}"</p>
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" onClick={() => setDeleteModal(null)}>Cancel</Button>
-                <Button
-                  variant="destructive"
-                  className="flex-1"
-                  disabled={deleteMutation.isPending}
-                  onClick={() => deleteMutation.mutate(deleteModal.id)}
-                >
-                  {deleteMutation.isPending ? "Deleting..." : "Yes, Delete"}
-                </Button>
-              </div>
+      {/* ── Delete Confirm Dialog ── */}
+      {deleteModal && (
+        <Dialog open onOpenChange={() => setDeleteModal(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-destructive">Delete Expense?</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">Are you sure you want to delete <strong>"{deleteModal.desc}"</strong>? This cannot be undone.</p>
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" onClick={() => setDeleteModal(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => deleteMutation.mutate(deleteModal.id)} disabled={deleteMutation.isPending}>
+                {deleteMutation.isPending ? "Deleting…" : "Delete"}
+              </Button>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

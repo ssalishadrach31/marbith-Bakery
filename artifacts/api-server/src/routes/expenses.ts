@@ -12,7 +12,7 @@ function getUser(req: any): { userId: number; role: string; name: string } | nul
   try { return jwt.verify(h.slice(7), JWT_SECRET) as any; } catch { return null; }
 }
 
-// GET /api/expenses?status=pending|approved|rejected&month=YYYY-MM
+// GET /api/expenses?status=pending|awaiting_second|approved|rejected&month=YYYY-MM
 router.get("/expenses", async (req, res): Promise<void> => {
   const user = getUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -80,18 +80,19 @@ router.get("/expenses/report", async (req, res): Promise<void> => {
     .orderBy(expensesTable.expenseDate);
 
   const totalApproved = byCategory.reduce((s, r) => s + (r.total ?? 0), 0);
-  const pendingCount = await db
+
+  const pendingRows = await db
     .select({ count: sql<number>`COUNT(*)::int` })
     .from(expensesTable)
     .where(and(
       sql`TO_CHAR(${expensesTable.expenseDate}, 'YYYY-MM') = ${month}`,
-      eq(expensesTable.status, "pending")
+      sql`${expensesTable.status} IN ('pending', 'awaiting_second')`
     ));
 
   res.json({
     month,
     totalApproved,
-    pendingCount: pendingCount[0]?.count ?? 0,
+    pendingCount: pendingRows[0]?.count ?? 0,
     byCategory: byCategory.map((r) => ({ ...r, total: r.total ?? 0, count: r.count ?? 0 })),
     byPerson: byPerson.map((r) => ({ ...r, total: r.total ?? 0, count: r.count ?? 0 })),
     entries: allApproved,
@@ -121,29 +122,70 @@ router.post("/expenses", async (req, res): Promise<void> => {
   res.status(201).json(record);
 });
 
-// PATCH /api/expenses/:id/review — admin approve or reject
+// PATCH /api/expenses/:id/review — dual-approval flow
+// First admin: pending → awaiting_second
+// Second admin (different person): awaiting_second → approved
+// Either admin can reject at any stage
 router.patch("/expenses/:id/review", async (req, res): Promise<void> => {
   const user = getUser(req);
   if (!user || user.role !== "admin") { res.status(403).json({ error: "Admin only" }); return; }
 
   const id = parseInt(req.params.id, 10);
-  const { status, reviewNotes } = req.body;
+  const { action, reviewNotes } = req.body; // action: "approve" | "reject"
 
-  if (!["approved", "rejected"].includes(status)) {
-    res.status(400).json({ error: "status must be approved or rejected" });
+  if (!["approve", "reject"].includes(action)) {
+    res.status(400).json({ error: "action must be 'approve' or 'reject'" });
     return;
   }
 
-  const [record] = await db.update(expensesTable)
-    .set({ status, reviewedBy: user.name, reviewedAt: new Date(), reviewNotes: reviewNotes || null })
-    .where(eq(expensesTable.id, id))
-    .returning();
+  const [expense] = await db.select().from(expensesTable).where(eq(expensesTable.id, id));
+  if (!expense) { res.status(404).json({ error: "Expense not found" }); return; }
 
-  if (!record) { res.status(404).json({ error: "Expense not found" }); return; }
-  res.json(record);
+  if (expense.status === "approved" || expense.status === "rejected") {
+    res.status(400).json({ error: "Expense is already finalised" });
+    return;
+  }
+
+  // ── REJECT at any stage ──
+  if (action === "reject") {
+    const [record] = await db.update(expensesTable)
+      .set({ status: "rejected", reviewedBy: user.name, reviewedAt: new Date(), reviewNotes: reviewNotes || null })
+      .where(eq(expensesTable.id, id))
+      .returning();
+    res.json(record);
+    return;
+  }
+
+  // ── APPROVE ──
+  if (expense.status === "pending") {
+    // First approval
+    const [record] = await db.update(expensesTable)
+      .set({ status: "awaiting_second", firstApprovedBy: user.name, firstApprovedAt: new Date() })
+      .where(eq(expensesTable.id, id))
+      .returning();
+    res.json(record);
+    return;
+  }
+
+  if (expense.status === "awaiting_second") {
+    // Block the same admin from giving the second approval
+    if (expense.firstApprovedBy === user.name) {
+      res.status(403).json({ error: `You already gave the first approval. A different admin must approve this expense.` });
+      return;
+    }
+    // Second approval — fully approved
+    const [record] = await db.update(expensesTable)
+      .set({ status: "approved", reviewedBy: user.name, reviewedAt: new Date(), reviewNotes: reviewNotes || null })
+      .where(eq(expensesTable.id, id))
+      .returning();
+    res.json(record);
+    return;
+  }
+
+  res.status(400).json({ error: "Unexpected expense status" });
 });
 
-// DELETE /api/expenses/:id — submitter or admin can delete pending expense
+// DELETE /api/expenses/:id — submitter or admin can delete pending/awaiting_second expense
 router.delete("/expenses/:id", async (req, res): Promise<void> => {
   const user = getUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -151,7 +193,10 @@ router.delete("/expenses/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const [expense] = await db.select().from(expensesTable).where(eq(expensesTable.id, id));
   if (!expense) { res.status(404).json({ error: "Not found" }); return; }
-  if (expense.status !== "pending") { res.status(400).json({ error: "Can only delete pending expenses" }); return; }
+  if (!["pending", "awaiting_second"].includes(expense.status)) {
+    res.status(400).json({ error: "Can only delete pending expenses" });
+    return;
+  }
   if (user.role !== "admin" && expense.submittedBy !== user.name) { res.status(403).json({ error: "Forbidden" }); return; }
 
   await db.delete(expensesTable).where(eq(expensesTable.id, id));
