@@ -430,7 +430,7 @@ export default function StaffDashboardPage() {
 
   if (!data) return null;
 
-  const { production, receipts, sales, inventory, accountability } = data;
+  const { production, receipts, sales, inventory, accountability, expenses } = data;
   const hasProduction = production.totalUnits > 0;
   const hasReceipts = receipts.totalReceived > 0;
   const hasSales = sales.transactionCount > 0;
@@ -489,7 +489,9 @@ export default function StaffDashboardPage() {
   const juiceRevenue = calcRevenue(juiceEntries);
   const coffeeRevenue = calcRevenue(coffeeEntries);
   const teaRevenue = calcRevenue(teaEntries);
-  const grandTotal = sales.totalRevenue + iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue;
+  const approvedExpensesTotal = expenses?.approvedTotal ?? 0;
+  const pendingExpensesByPerson: Array<{ submittedBy: string; total: number; count: number }> = expenses?.pendingByPerson ?? [];
+  const grandTotal = sales.totalRevenue + iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue - approvedExpensesTotal;
 
   return (
     <div className="space-y-5">
@@ -536,6 +538,28 @@ export default function StaffDashboardPage() {
             </span>
           </div>
           <button onClick={() => setShowHistory(true)} className="text-xs underline text-green-700 shrink-0">View History</button>
+        </div>
+      )}
+
+      {/* Pending expenses warning — personal liability notice */}
+      {pendingExpensesByPerson.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
+          <div className="flex items-center gap-2 text-amber-800 font-semibold text-sm">
+            <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+            Unapproved Expenses — Personal Liability
+          </div>
+          <p className="text-xs text-amber-700">
+            Per company policy, expenses not yet approved by admin must be covered personally by whoever submitted them. No loans allowed.
+          </p>
+          <div className="space-y-1">
+            {pendingExpensesByPerson.map((p) => (
+              <div key={p.submittedBy} className="flex items-center justify-between text-sm bg-white border border-amber-100 rounded-lg px-3 py-2">
+                <span className="font-medium text-amber-900">{p.submittedBy}</span>
+                <span className="text-xs text-amber-600 mr-auto ml-2">{p.count} pending expense{p.count !== 1 ? "s" : ""}</span>
+                <span className="font-bold text-amber-800">{formatUGX(p.total)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1133,8 +1157,16 @@ export default function StaffDashboardPage() {
                   <span className="font-bold text-green-700">{formatUGX(teaRevenue)}</span>
                 </div>
               )}
+              {approvedExpensesTotal > 0 && (
+                <div className="flex justify-between text-sm px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
+                  <span className="flex items-center gap-2 text-red-700">
+                    <Wallet className="h-4 w-4" /> Approved Expenses (deducted)
+                  </span>
+                  <span className="font-bold text-red-600">−{formatUGX(approvedExpensesTotal)}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center px-3 py-3 bg-primary/5 border border-primary/20 rounded-lg font-bold">
-                <span className="text-sm">Grand Total</span>
+                <span className="text-sm">Grand Total {approvedExpensesTotal > 0 && <span className="text-xs font-normal text-muted-foreground ml-1">(after expenses)</span>}</span>
                 <span className="text-primary text-xl">{formatUGX(grandTotal)}</span>
               </div>
             </div>

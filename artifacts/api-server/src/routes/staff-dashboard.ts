@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
-import { db, productionTable, productsTable, salesTable, saleItemsTable, inventoryTable, shopReceiptsTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { db, productionTable, productsTable, salesTable, saleItemsTable, inventoryTable, shopReceiptsTable, expensesTable } from "@workspace/db";
+import { eq, sql, and, inArray } from "drizzle-orm";
 
 const router: IRouter = Router();
 const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
@@ -133,6 +133,25 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     .leftJoin(productsTable, eq(inventoryTable.productId, productsTable.id))
     .orderBy(productsTable.name);
 
+  // 9. Today's approved expenses (deducted from grand total)
+  const approvedExpensesRows = await db
+    .select({ total: sql<number>`COALESCE(SUM(${expensesTable.amount}), 0)::int` })
+    .from(expensesTable)
+    .where(and(eq(expensesTable.expenseDate, today), eq(expensesTable.status, "approved")));
+
+  // 10. Today's pending/awaiting expenses grouped by submitter (personal liability)
+  const pendingExpensesRows = await db
+    .select({
+      submittedBy: expensesTable.submittedBy,
+      total: sql<number>`SUM(${expensesTable.amount})::int`,
+      count: sql<number>`COUNT(*)::int`,
+    })
+    .from(expensesTable)
+    .where(and(eq(expensesTable.expenseDate, today), inArray(expensesTable.status, ["pending", "awaiting_second"])))
+    .groupBy(expensesTable.submittedBy);
+
+  const approvedExpensesTotal = approvedExpensesRows[0]?.total ?? 0;
+
   // Summaries
   const totalRevenue = salesTransactions.reduce((s, t) => s + (t.totalAmount ?? 0), 0);
   const totalReceived = receiptsByProduct.reduce((s, r) => s + (r.totalReceived ?? 0), 0);
@@ -198,6 +217,14 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
       totalReceived,
       totalSoldUnits,
       remainingStock,
+    },
+    expenses: {
+      approvedTotal: approvedExpensesTotal,
+      pendingByPerson: pendingExpensesRows.map((r) => ({
+        submittedBy: r.submittedBy,
+        total: r.total ?? 0,
+        count: r.count ?? 0,
+      })),
     },
   });
 });

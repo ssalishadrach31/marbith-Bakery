@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Plus, Minus, Printer, Download, PenLine, RotateCcw, Check } from "lucide-react";
+import { Trash2, Plus, Minus, Printer, Download, PenLine, RotateCcw, Check, Phone, Settings2 } from "lucide-react";
 
 interface CartItem { productId: number; name: string; price: number; quantity: number; }
 
@@ -21,6 +21,8 @@ const PAYMENT_METHODS = [
 ];
 
 const SIG_KEY = "marbith_admin_signature";
+const MTN_KEY = "marbith_mtn_number";
+const AIRTEL_KEY = "marbith_airtel_number";
 
 function SignaturePad({ onSave, onCancel }: { onSave: (dataUrl: string) => void; onCancel: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -126,6 +128,11 @@ export default function POSPage() {
   const [showReceipt, setShowReceipt] = useState(false);
   const [showSigPad, setShowSigPad] = useState(false);
   const [savedSig, setSavedSig] = useState<string | null>(() => localStorage.getItem(SIG_KEY));
+  const [mtnNumber, setMtnNumber] = useState(() => localStorage.getItem(MTN_KEY) ?? "");
+  const [airtelNumber, setAirtelNumber] = useState(() => localStorage.getItem(AIRTEL_KEY) ?? "");
+  const [editingNumbers, setEditingNumbers] = useState(false);
+  const [draftMtn, setDraftMtn] = useState("");
+  const [draftAirtel, setDraftAirtel] = useState("");
 
   const { data: receiptData } = useGetSale(receiptSaleId ?? 0, { query: { enabled: !!receiptSaleId, queryKey: ["sale", receiptSaleId] } });
 
@@ -179,6 +186,27 @@ export default function POSPage() {
     } catch {
       toast({ title: "Error", description: "Failed to process sale", variant: "destructive" });
     }
+  }
+
+  function saveNumbers() {
+    localStorage.setItem(MTN_KEY, draftMtn);
+    localStorage.setItem(AIRTEL_KEY, draftAirtel);
+    setMtnNumber(draftMtn);
+    setAirtelNumber(draftAirtel);
+    setEditingNumbers(false);
+    toast({ title: "Numbers saved", description: "Mobile money numbers updated for dialer prompts" });
+  }
+
+  function openDialer() {
+    const num = paymentMethod === "mtn_momo" ? mtnNumber : airtelNumber;
+    if (!num || total === 0) return;
+    let ussd: string;
+    if (paymentMethod === "mtn_momo") {
+      ussd = `tel:*165*3*${num}*${total}%23`;
+    } else {
+      ussd = `tel:*185*1*${num}*${total}%23`;
+    }
+    window.location.href = ussd;
   }
 
   function saveSig(dataUrl: string) {
@@ -319,12 +347,48 @@ export default function POSPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                {paymentMethod !== "cash" && (
-                  <div>
-                    <Label className="text-sm">Transaction ID</Label>
-                    <Input value={transactionId} onChange={(e) => setTransactionId(e.target.value)} placeholder="Mobile money transaction ID" className="mt-1" />
-                  </div>
-                )}
+                {paymentMethod !== "cash" && (() => {
+                  const isMtn = paymentMethod === "mtn_momo";
+                  const num = isMtn ? mtnNumber : airtelNumber;
+                  const hasNum = !!num;
+                  return (
+                    <>
+                      {/* Dialer prompt */}
+                      <div className={`rounded-xl border-2 p-4 space-y-3 ${isMtn ? "border-yellow-300 bg-yellow-50" : "border-red-200 bg-red-50"}`}>
+                        <div className={`flex items-center gap-2 font-semibold text-sm ${isMtn ? "text-yellow-800" : "text-red-800"}`}>
+                          <Phone className="h-4 w-4" />
+                          {isMtn ? "MTN Mobile Money" : "Airtel Money"} — Ask Customer to Dial
+                        </div>
+                        {hasNum ? (
+                          <>
+                            <div className={`rounded-lg p-3 font-mono text-sm font-bold text-center ${isMtn ? "bg-yellow-100 text-yellow-900" : "bg-red-100 text-red-900"}`}>
+                              {isMtn ? `*165*3*${num}*${total}#` : `*185*1*${num}*${total}#`}
+                            </div>
+                            <p className={`text-xs ${isMtn ? "text-yellow-700" : "text-red-700"}`}>
+                              Customer dials the code above → enters PIN → money is sent. The number and amount are already filled in.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={openDialer}
+                              className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold text-sm transition-colors ${isMtn ? "bg-yellow-400 hover:bg-yellow-500 text-yellow-900" : "bg-red-500 hover:bg-red-600 text-white"}`}
+                            >
+                              <Phone className="h-4 w-4" /> Open Dialer on This Device
+                            </button>
+                          </>
+                        ) : (
+                          <p className={`text-xs ${isMtn ? "text-yellow-700" : "text-red-700"}`}>
+                            No {isMtn ? "MTN" : "Airtel"} number configured yet. {isAdmin ? "Set it in the Phone Numbers card below." : "Ask admin to set the mobile money number."}
+                          </p>
+                        )}
+                      </div>
+                      {/* Transaction ID */}
+                      <div>
+                        <Label className="text-sm">Transaction ID (after payment)</Label>
+                        <Input value={transactionId} onChange={(e) => setTransactionId(e.target.value)} placeholder="Enter the MoMo transaction ID" className="mt-1" />
+                      </div>
+                    </>
+                  );
+                })()}
                 <Button className="w-full" onClick={handleCheckout} disabled={createSale.isPending}>
                   {createSale.isPending ? "Processing..." : "Complete Sale"}
                 </Button>
@@ -333,6 +397,57 @@ export default function POSPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Mobile money number settings (admin only) */}
+      {isAdmin && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Settings2 className="h-4 w-4" />
+              Mobile Money Numbers (Dialer)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {editingNumbers ? (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">Enter the business mobile money numbers. These will be pre-filled in the USSD dialer when processing mobile payments.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-yellow-700 font-medium">MTN MoMo Number</Label>
+                    <Input value={draftMtn} onChange={(e) => setDraftMtn(e.target.value)} placeholder="e.g. 0776123456" className="mt-1 font-mono" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-red-700 font-medium">Airtel Money Number</Label>
+                    <Input value={draftAirtel} onChange={(e) => setDraftAirtel(e.target.value)} placeholder="e.g. 0752123456" className="mt-1 font-mono" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={saveNumbers} className="gap-1.5"><Check className="h-3.5 w-3.5" /> Save Numbers</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditingNumbers(false)}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-4">
+                <div className="flex gap-4 flex-1 text-sm">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />
+                    <span className="text-muted-foreground">MTN:</span>
+                    <span className="font-mono font-semibold">{mtnNumber || <span className="text-muted-foreground italic">not set</span>}</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-red-400 shrink-0" />
+                    <span className="text-muted-foreground">Airtel:</span>
+                    <span className="font-mono font-semibold">{airtelNumber || <span className="text-muted-foreground italic">not set</span>}</span>
+                  </span>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => { setDraftMtn(mtnNumber); setDraftAirtel(airtelNumber); setEditingNumbers(true); }} className="gap-1.5 shrink-0">
+                  <Settings2 className="h-3.5 w-3.5" /> Edit
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Signature management (admin only) */}
       {isAdmin && (
