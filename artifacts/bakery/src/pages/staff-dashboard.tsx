@@ -65,21 +65,37 @@ function CountSection({
 }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
-  // Only count sold when BOTH opening and closing are set
-  const totalSold = entries.reduce((s, e) => {
-    if (e.opening === undefined || e.closing === undefined) return s;
-    const sold = Math.max(0, e.opening - e.closing);
-    return s + sold;
+  function saveEntry(productId: number, countType: "opening" | "closing", key: string) {
+    const q = parseInt(drafts[key] ?? "");
+    if (!isNaN(q) && q >= 0) {
+      onSave(productId, countType, q);
+      setDrafts((d) => { const nd = { ...d }; delete nd[key]; return nd; });
+    }
+  }
+
+  // Build effective values: saved data takes priority; fall back to typed draft for live preview
+  const effectiveEntries = entries.map((e) => {
+    const openKey = `${e.productId}-opening`;
+    const closeKey = `${e.productId}-closing`;
+    const draftOpen = parseInt(drafts[openKey] ?? "");
+    const draftClose = parseInt(drafts[closeKey] ?? "");
+    const effOpen = e.opening !== undefined ? e.opening : (!isNaN(draftOpen) && drafts[openKey] !== undefined ? draftOpen : undefined);
+    const effClose = e.closing !== undefined ? e.closing : (!isNaN(draftClose) && drafts[closeKey] !== undefined ? draftClose : undefined);
+    return { ...e, effOpen, effClose, openKey, closeKey };
+  });
+
+  const totalSold = effectiveEntries.reduce((s, e) => {
+    if (e.effOpen === undefined || e.effClose === undefined) return s;
+    return s + Math.max(0, e.effOpen - e.effClose);
   }, 0);
-  const totalRevenue = entries.reduce((s, e) => {
-    if (e.opening === undefined || e.closing === undefined) return s;
-    const sold = Math.max(0, e.opening - e.closing);
-    return s + sold * e.price;
+  const totalRevenue = effectiveEntries.reduce((s, e) => {
+    if (e.effOpen === undefined || e.effClose === undefined) return s;
+    return s + Math.max(0, e.effOpen - e.effClose) * e.price;
   }, 0);
 
-  const allComplete = entries.length > 0 && entries.every((e) => e.opening !== undefined && e.closing !== undefined);
-  const hasOpening = entries.some((e) => e.opening !== undefined);
-  const hasClosing = entries.some((e) => e.closing !== undefined);
+  const allComplete = effectiveEntries.length > 0 && effectiveEntries.every((e) => e.effOpen !== undefined && e.effClose !== undefined);
+  const hasOpening = effectiveEntries.some((e) => e.effOpen !== undefined);
+  const hasClosing = effectiveEntries.some((e) => e.effClose !== undefined);
 
   return (
     <Card>
@@ -108,9 +124,9 @@ function CountSection({
         {/* Progress bar */}
         {entries.length > 0 && (
           <div className="flex gap-1 mb-4">
-            {entries.map((e) => {
-              const bothDone = e.opening !== undefined && e.closing !== undefined;
-              const onlyOpen = e.opening !== undefined && e.closing === undefined;
+            {effectiveEntries.map((e) => {
+              const bothDone = e.effOpen !== undefined && e.effClose !== undefined;
+              const onlyOpen = e.effOpen !== undefined && e.effClose === undefined;
               return (
                 <div
                   key={e.productId}
@@ -135,13 +151,13 @@ function CountSection({
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => {
-                const sold = entry.opening !== undefined && entry.closing !== undefined
-                  ? Math.max(0, entry.opening - entry.closing)
+              {effectiveEntries.map((entry) => {
+                const { openKey, closeKey, effOpen, effClose } = entry;
+                const sold = effOpen !== undefined && effClose !== undefined
+                  ? Math.max(0, effOpen - effClose)
                   : null;
                 const revenue = sold !== null ? sold * entry.price : null;
-                const openKey = `${entry.productId}-opening`;
-                const closeKey = `${entry.productId}-closing`;
+                const isPreview = sold !== null && (entry.opening === undefined || entry.closing === undefined);
 
                 return (
                   <tr key={entry.productId} className="border-t border-border hover:bg-muted/20">
@@ -163,21 +179,16 @@ function CountSection({
                           <Input
                             type="number"
                             min="0"
-                            className="h-7 w-16 text-center text-sm p-1"
+                            className="h-8 w-16 text-center text-sm p-1"
                             value={drafts[openKey]}
                             onChange={(e) => setDrafts((d) => ({ ...d, [openKey]: e.target.value }))}
+                            onKeyDown={(e) => { if (e.key === "Enter") saveEntry(entry.productId, "opening", openKey); }}
                             autoFocus
                           />
                           <button
-                            className="text-green-600 font-bold text-lg leading-none"
+                            className="w-8 h-8 flex items-center justify-center bg-green-600 text-white rounded font-bold text-base"
                             disabled={isSaving}
-                            onClick={() => {
-                              const q = parseInt(drafts[openKey] ?? "");
-                              if (!isNaN(q) && q >= 0) {
-                                onSave(entry.productId, "opening", q);
-                                setDrafts((d) => { const nd = { ...d }; delete nd[openKey]; return nd; });
-                              }
-                            }}
+                            onClick={() => saveEntry(entry.productId, "opening", openKey)}
                           >✓</button>
                         </div>
                       ) : (
@@ -203,21 +214,16 @@ function CountSection({
                           <Input
                             type="number"
                             min="0"
-                            className="h-7 w-16 text-center text-sm p-1"
+                            className="h-8 w-16 text-center text-sm p-1"
                             value={drafts[closeKey]}
                             onChange={(e) => setDrafts((d) => ({ ...d, [closeKey]: e.target.value }))}
+                            onKeyDown={(e) => { if (e.key === "Enter") saveEntry(entry.productId, "closing", closeKey); }}
                             autoFocus
                           />
                           <button
-                            className="text-green-600 font-bold text-lg leading-none"
+                            className="w-8 h-8 flex items-center justify-center bg-green-600 text-white rounded font-bold text-base"
                             disabled={isSaving}
-                            onClick={() => {
-                              const q = parseInt(drafts[closeKey] ?? "");
-                              if (!isNaN(q) && q >= 0) {
-                                onSave(entry.productId, "closing", q);
-                                setDrafts((d) => { const nd = { ...d }; delete nd[closeKey]; return nd; });
-                              }
-                            }}
+                            onClick={() => saveEntry(entry.productId, "closing", closeKey)}
                           >✓</button>
                         </div>
                       ) : (
@@ -231,8 +237,8 @@ function CountSection({
                     {/* Sold */}
                     <td className="py-2.5 px-3 text-center">
                       {sold !== null ? (
-                        <span className={`font-bold text-base ${sold === 0 ? "text-muted-foreground" : "text-green-700"}`}>{sold}</span>
-                      ) : entry.opening !== undefined && entry.closing === undefined ? (
+                        <span className={`font-bold text-base ${isPreview ? "text-green-500" : sold === 0 ? "text-muted-foreground" : "text-green-700"}`}>{sold}</span>
+                      ) : effOpen !== undefined && effClose === undefined ? (
                         <span className="text-xs text-blue-500 flex items-center justify-center gap-0.5">
                           <ArrowRight className="h-3 w-3" /> closing?
                         </span>
@@ -244,7 +250,7 @@ function CountSection({
                     {/* Revenue */}
                     <td className="py-2.5 px-3 text-right font-semibold">
                       {revenue !== null ? (
-                        <span className={revenue === 0 ? "text-muted-foreground" : "text-green-700 font-bold"}>{formatUGX(revenue)}</span>
+                        <span className={isPreview ? "text-green-500 font-bold" : revenue === 0 ? "text-muted-foreground" : "text-green-700 font-bold"}>{formatUGX(revenue)}</span>
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
@@ -319,7 +325,9 @@ export default function StaffDashboardPage() {
   const { data: dailyCounts } = useQuery<any[]>({
     queryKey: ["daily-counts", countsDate],
     queryFn: () => apiFetch(`/daily-counts?date=${countsDate}`),
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 
   const [showReceiptForm, setShowReceiptForm] = useState(false);
@@ -339,7 +347,16 @@ export default function StaffDashboardPage() {
   const saveCountMutation = useMutation({
     mutationFn: (data: object) => apiFetch("/daily-counts", { method: "POST", body: JSON.stringify(data) }),
     onSuccess: (result: any) => {
-      qc.invalidateQueries({ queryKey: ["daily-counts", countsDate] });
+      // Immediately update the local cache so sold/total shows without waiting for a refetch
+      qc.setQueryData(["daily-counts", result.countDate ?? countsDate], (old: any[] | undefined) => {
+        const filtered = (old ?? []).filter(
+          (c: any) => !(c.productId === result.productId && c.countType === result.countType)
+        );
+        return [...filtered, result];
+      });
+      // Background refetch for consistency + refresh admin dashboard revenue
+      qc.invalidateQueries({ queryKey: ["daily-counts", result.countDate ?? countsDate] });
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/summary"] });
       toast({ title: "Count saved", description: `${result.countType === "opening" ? "Opening" : "Closing"}: ${result.quantity} × ${result.productName}` });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
