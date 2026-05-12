@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
-import { usersTable } from "@workspace/db/schema";
+import { usersTable, shopsTable, employeesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -114,6 +114,74 @@ router.post("/dev/reset", devAdminOnly, async (req, res): Promise<void> => {
 
   req.log.info({ scope, cleared }, "Dev reset executed");
   res.json({ ok: true, scope, cleared });
+});
+
+// GET /api/dev/shops — list all shops
+router.get("/dev/shops", devAdminOnly, async (_req, res): Promise<void> => {
+  const shops = await db
+    .select()
+    .from(shopsTable)
+    .orderBy(shopsTable.createdAt);
+
+  const employees = await db
+    .select({ id: employeesTable.id, name: employeesTable.name, role: employeesTable.role, shopId: employeesTable.shopId })
+    .from(employeesTable);
+
+  const result = shops.map((s) => ({
+    ...s,
+    createdAt: s.createdAt.toISOString(),
+    employees: employees.filter((e) => e.shopId === s.id),
+  }));
+
+  res.json(result);
+});
+
+// POST /api/dev/shops — create a new shop
+router.post("/dev/shops", devAdminOnly, async (req, res): Promise<void> => {
+  const { name, location, address, phone } = req.body as {
+    name: string; location: string; address?: string; phone?: string;
+  };
+  if (!name?.trim() || !location?.trim()) {
+    res.status(400).json({ error: "name and location are required" });
+    return;
+  }
+  const [shop] = await db.insert(shopsTable).values({
+    name: name.trim(),
+    location: location.trim(),
+    address: address?.trim() || null,
+    phone: phone?.trim() || null,
+    isActive: true,
+  }).returning();
+
+  res.json({ ...shop, createdAt: shop.createdAt.toISOString(), employees: [] });
+});
+
+// PATCH /api/dev/shops/:id/toggle — activate / deactivate
+router.patch("/dev/shops/:id/toggle", devAdminOnly, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const [existing] = await db.select().from(shopsTable).where(eq(shopsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Shop not found" }); return; }
+
+  const [updated] = await db.update(shopsTable)
+    .set({ isActive: !existing.isActive })
+    .where(eq(shopsTable.id, id))
+    .returning();
+
+  res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+});
+
+// PATCH /api/dev/employees/:id/shop — assign employee to a shop
+router.patch("/dev/employees/:id/shop", devAdminOnly, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const { shopId } = req.body as { shopId: number | null };
+
+  const [updated] = await db.update(employeesTable)
+    .set({ shopId: shopId ?? null })
+    .where(eq(employeesTable.id, id))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "Employee not found" }); return; }
+  res.json(updated);
 });
 
 export default router;

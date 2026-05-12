@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, real, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, real, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -11,6 +11,7 @@ export const employeesTable = pgTable("employees", {
   salary: real("salary"),
   joinDate: text("join_date").notNull(),
   isActive: boolean("is_active").notNull().default(true),
+  shopId: integer("shop_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
