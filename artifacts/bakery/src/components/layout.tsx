@@ -30,7 +30,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: "/dashboard",       label: "Dashboard",       icon: LayoutDashboard, roles: ["admin"] },
-  { href: "/staff-dashboard", label: "My Dashboard",    icon: BarChart2,       roles: ["staff", "cashier", "baker"] },
+  { href: "/staff-dashboard", label: "Stock Counts",    icon: BarChart2,       roles: ["admin", "staff", "cashier", "baker"] },
   { href: "/production",      label: "Production",      icon: Factory,         roles: ["admin", "staff", "baker"] },
   { href: "/inventory",       label: "Inventory",       icon: Package,         roles: ["admin"] },
   { href: "/pos",             label: "POS / Sales",     icon: ShoppingCart,    roles: ["admin", "staff", "cashier"] },
