@@ -1,9 +1,7 @@
-import { Link, useLocation } from "wouter";
-import { getUser, removeToken, formatUGX } from "@/lib/auth";
-import { useLocation as useWouterLocation } from "wouter";
+import { useLocation } from "wouter";
+import { getUser, removeToken } from "@/lib/auth";
 import { queryClient } from "@/lib/query-client";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
   Factory,
@@ -45,7 +43,7 @@ const navItems: NavItem[] = [
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const user = getUser();
-  const [location, navigate] = useWouterLocation();
+  const [location, navigate] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const visibleNav = navItems.filter((item) => user && item.roles.includes(user.role));
@@ -59,7 +57,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       <div className="px-5 py-5 border-b border-sidebar-border">
-        <div className="text-sidebar-primary font-bold text-lg tracking-tight leading-tight">Marbith Bakery<br /><span className="text-xs font-normal text-sidebar-foreground/50 tracking-normal">& Investments</span></div>
+        <div className="text-sidebar-primary font-bold text-lg tracking-tight leading-tight">
+          Marbith Bakery
+          <br />
+          <span className="text-xs font-normal text-sidebar-foreground/50 tracking-normal">& Investments</span>
+        </div>
         <div className="text-sidebar-foreground/60 text-xs mt-1">{user?.name} &mdash; {user?.role}</div>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
@@ -67,19 +69,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           const Icon = item.icon;
           const active = location === item.href || location.startsWith(item.href + "/");
           return (
-            <Link key={item.href} href={item.href}>
-              <a
-                onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  active
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                }`}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                {item.label}
-              </a>
-            </Link>
+            <button
+              key={item.href}
+              onClick={() => { navigate(item.href); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+                active
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              }`}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              {item.label}
+            </button>
           );
         })}
       </nav>
