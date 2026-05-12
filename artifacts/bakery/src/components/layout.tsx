@@ -28,6 +28,7 @@ import {
 interface NavItem {
   href: string;
   label: string;
+  onlyFor?: string;
   icon: React.ComponentType<{ className?: string }>;
   roles: string[];
 }
@@ -48,7 +49,7 @@ const navItems: NavItem[] = [
   { href: "/expenses",         label: "Expenses",        icon: Receipt,         roles: ["admin", "staff", "cashier", "baker"] },
   { href: "/daily-report",     label: "Daily Report",    icon: FileBarChart,    roles: ["admin"] },
   { href: "/users",            label: "User Management", icon: ShieldCheck,     roles: ["admin"] },
-  { href: "/dev-tools",        label: "Developer Tools", icon: Terminal,        roles: ["admin"] },
+  { href: "/dev-tools",        label: "Developer Tools", icon: Terminal,        roles: ["admin"], onlyFor: "shadrachssali@gmail.com" },
   { href: "/rider-deliveries", label: "My Deliveries",   icon: Truck,           roles: ["rider"] },
 ];
 
@@ -57,7 +58,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const visibleNav = navItems.filter((item) => user && item.roles.includes(user.role));
+  const visibleNav = navItems.filter((item) =>
+    user &&
+    item.roles.includes(user.role) &&
+    (!item.onlyFor || item.onlyFor === user.username)
+  );
 
   function handleLogout() {
     removeToken();

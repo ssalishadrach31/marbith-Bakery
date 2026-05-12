@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getToken } from "@/lib/auth";
+import { getToken, getUser } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -114,11 +114,29 @@ function StatBadge({ label, value, highlight }: { label: string; value: number; 
   );
 }
 
+const ALLOWED = "shadrachssali@gmail.com";
+
 export default function DevToolsPage() {
+  const currentUser = getUser();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [confirming, setConfirming] = useState<string | null>(null);
   const [confirmAll, setConfirmAll] = useState(false);
+
+  if (!currentUser || currentUser.username !== ALLOWED) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center">
+        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
+          <AlertTriangle className="h-8 w-8 text-red-500" />
+        </div>
+        <h1 className="text-xl font-bold text-red-700">Access Restricted</h1>
+        <p className="text-muted-foreground text-sm max-w-xs">
+          Developer Tools are only accessible to the system developer account.
+          This access attempt has been noted.
+        </p>
+      </div>
+    );
+  }
 
   const { data: stats, isLoading, refetch } = useQuery<Stats>({
     queryKey: ["dev-stats"],

@@ -2,25 +2,38 @@ import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { usersTable } from "@workspace/db/schema";
+import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
+const ALLOWED_USERNAME = "shadrachssali@gmail.com";
 
-function getUser(req: any): { userId: number; role: string; name: string } | null {
+function getTokenPayload(req: any): { userId: number; role: string; name: string } | null {
   const h = req.headers.authorization;
   if (!h?.startsWith("Bearer ")) return null;
   try { return jwt.verify(h.slice(7), JWT_SECRET) as any; } catch { return null; }
 }
 
-function adminOnly(req: any, res: any, next: any) {
-  const user = getUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (user.role !== "admin") { res.status(403).json({ error: "Admin only" }); return; }
+async function devAdminOnly(req: any, res: any, next: any) {
+  const payload = getTokenPayload(req);
+  if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (payload.role !== "admin") { res.status(403).json({ error: "Admin only" }); return; }
+
+  const [user] = await db.select({ username: usersTable.username })
+    .from(usersTable)
+    .where(eq(usersTable.id, payload.userId))
+    .limit(1);
+
+  if (!user || user.username !== ALLOWED_USERNAME) {
+    res.status(403).json({ error: "Access restricted to the system developer" });
+    return;
+  }
   next();
 }
 
-// GET /api/dev/stats — row counts for all operational tables
-router.get("/dev/stats", adminOnly, async (req, res): Promise<void> => {
+// GET /api/dev/stats
+router.get("/dev/stats", devAdminOnly, async (req, res): Promise<void> => {
   const tables = [
     "production", "sales", "sale_items", "shop_receipts",
     "daily_counts", "orders", "order_items", "deliveries",
@@ -36,15 +49,14 @@ router.get("/dev/stats", adminOnly, async (req, res): Promise<void> => {
     counts[t] = (result.rows[0] as any).n;
   }
 
-  // Inventory stock sum
   const stockResult = await db.execute(sql`SELECT COALESCE(SUM(current_stock),0)::int AS total FROM inventory`);
   const totalStock = (stockResult.rows[0] as any).total;
 
   res.json({ counts, totalStock, kept });
 });
 
-// POST /api/dev/reset — clear specific scope
-router.post("/dev/reset", adminOnly, async (req, res): Promise<void> => {
+// POST /api/dev/reset
+router.post("/dev/reset", devAdminOnly, async (req, res): Promise<void> => {
   const { scope } = req.body as { scope: string };
 
   const validScopes = ["all", "production", "sales", "counts", "orders", "expenses", "attendance", "payments", "notifications", "inventory"];
@@ -103,4 +115,5 @@ router.post("/dev/reset", adminOnly, async (req, res): Promise<void> => {
   req.log.info({ scope, cleared }, "Dev reset executed");
   res.json({ ok: true, scope, cleared });
 });
+
 export default router;
