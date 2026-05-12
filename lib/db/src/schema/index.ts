@@ -17,3 +17,4 @@ export * from "./notifications";
 export * from "./salary-payments";
 export * from "./shops";
 export * from "./shift-closings";
+export * from "./inventory-adjustments";
