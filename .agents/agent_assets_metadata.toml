@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "VcIOqx4E3Pmz6xdpJCnLN"
+uri = "file://marbith-bakery-source.zip"
+type = "unspecified"
+title = "Marbith Bakery — Full Source Code"
