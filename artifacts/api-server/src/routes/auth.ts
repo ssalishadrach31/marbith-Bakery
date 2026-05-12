@@ -37,6 +37,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       username: user.username,
       name: user.name,
       role: user.role,
+      jobTitle: user.jobTitle ?? null,
       employeeId: user.employeeId,
     },
   });
@@ -65,6 +66,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
       username: user.username,
       name: user.name,
       role: user.role,
+      jobTitle: user.jobTitle ?? null,
       employeeId: user.employeeId,
     });
   } catch {

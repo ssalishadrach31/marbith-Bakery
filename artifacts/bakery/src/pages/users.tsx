@@ -15,7 +15,8 @@ interface SystemUser {
   id: number;
   username: string;
   name: string;
-  role: "admin" | "staff" | "rider";
+  role: "admin" | "staff" | "cashier" | "baker" | "rider";
+  jobTitle: string | null;
   isActive: boolean;
   employeeId: number | null;
   createdAt: string;
@@ -26,16 +27,28 @@ interface NewUserResult extends SystemUser {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  admin: "bg-purple-100 text-purple-700 border-purple-200",
-  staff: "bg-blue-100 text-blue-700 border-blue-200",
-  rider: "bg-green-100 text-green-700 border-green-200",
+  admin:   "bg-purple-100 text-purple-700 border-purple-200",
+  staff:   "bg-blue-100 text-blue-700 border-blue-200",
+  cashier: "bg-yellow-100 text-yellow-700 border-yellow-200",
+  baker:   "bg-orange-100 text-orange-700 border-orange-200",
+  rider:   "bg-green-100 text-green-700 border-green-200",
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  admin: "Admin",
-  staff: "Staff / Cashier",
-  rider: "Rider",
+  admin:   "Admin",
+  staff:   "Staff",
+  cashier: "Cashier",
+  baker:   "Baker / Chef",
+  rider:   "Rider",
 };
+
+const ROLE_OPTIONS = [
+  { value: "admin",   label: "Admin",          desc: "Full access to everything" },
+  { value: "staff",   label: "Staff",          desc: "POS Sales + Production" },
+  { value: "cashier", label: "Cashier",        desc: "POS / Sales only" },
+  { value: "baker",   label: "Baker / Chef",   desc: "Production recording only" },
+  { value: "rider",   label: "Rider",          desc: "My Deliveries only" },
+];
 
 async function apiCall(path: string, options?: RequestInit) {
   const token = getToken();
@@ -53,6 +66,8 @@ async function apiCall(path: string, options?: RequestInit) {
   }
   return res.status === 204 ? null : res.json();
 }
+
+const emptyForm = { username: "", name: "", password: "", role: "cashier", jobTitle: "" };
 
 export default function UsersPage() {
   const { toast } = useToast();
@@ -85,7 +100,7 @@ export default function UsersPage() {
   });
 
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ username: "", name: "", password: "", role: "staff" });
+  const [form, setForm] = useState(emptyForm);
   const [showPassword, setShowPassword] = useState(false);
   const [newUserResult, setNewUserResult] = useState<NewUserResult | null>(null);
   const [copied, setCopied] = useState(false);
@@ -98,11 +113,18 @@ export default function UsersPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const result: NewUserResult = await createMutation.mutateAsync(form);
+      const result: NewUserResult = await createMutation.mutateAsync({
+        username: form.username,
+        name: form.name,
+        password: form.password,
+        role: form.role,
+        jobTitle: form.jobTitle || null,
+      });
       qc.invalidateQueries({ queryKey: ["users"] });
       setNewUserResult(result);
       setShowCreate(false);
-      setForm({ username: "", name: "", password: "", role: "staff" });
+      setForm(emptyForm);
+      setShowPassword(false);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -138,9 +160,21 @@ export default function UsersPage() {
     });
   }
 
-  const admins = users?.filter((u) => u.role === "admin") ?? [];
-  const staff = users?.filter((u) => u.role === "staff") ?? [];
-  const riders = users?.filter((u) => u.role === "rider") ?? [];
+  const grouped = {
+    admin:   users?.filter((u) => u.role === "admin") ?? [],
+    staff:   users?.filter((u) => u.role === "staff") ?? [],
+    cashier: users?.filter((u) => u.role === "cashier") ?? [],
+    baker:   users?.filter((u) => u.role === "baker") ?? [],
+    rider:   users?.filter((u) => u.role === "rider") ?? [],
+  };
+
+  const stats = [
+    { label: "Admins",       count: grouped.admin.length,   color: "text-purple-600" },
+    { label: "Staff",        count: grouped.staff.length,   color: "text-blue-600" },
+    { label: "Cashiers",     count: grouped.cashier.length, color: "text-yellow-600" },
+    { label: "Bakers/Chefs", count: grouped.baker.length,   color: "text-orange-600" },
+    { label: "Riders",       count: grouped.rider.length,   color: "text-green-600" },
+  ];
 
   function UserTable({ list, title }: { list: SystemUser[]; title: string }) {
     if (list.length === 0) return null;
@@ -154,6 +188,7 @@ export default function UsersPage() {
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
                     <th className="text-left py-2.5 px-4 font-medium text-muted-foreground">Name</th>
+                    <th className="text-left py-2.5 px-4 font-medium text-muted-foreground hidden md:table-cell">Job Title</th>
                     <th className="text-left py-2.5 px-4 font-medium text-muted-foreground">Username</th>
                     <th className="text-left py-2.5 px-4 font-medium text-muted-foreground hidden md:table-cell">Role</th>
                     <th className="text-left py-2.5 px-4 font-medium text-muted-foreground hidden md:table-cell">Added</th>
@@ -169,6 +204,9 @@ export default function UsersPage() {
                         <td className="py-3 px-4">
                           <div className="font-medium">{u.name}</div>
                           {isMe && <div className="text-xs text-primary font-medium">You</div>}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground hidden md:table-cell">
+                          {u.jobTitle || <span className="text-muted-foreground/40 italic">—</span>}
                         </td>
                         <td className="py-3 px-4 font-mono text-sm text-muted-foreground">{u.username}</td>
                         <td className="py-3 px-4 hidden md:table-cell">
@@ -228,7 +266,7 @@ export default function UsersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">User Management</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Add staff, admins, and riders with login credentials</p>
+          <p className="text-muted-foreground text-sm mt-0.5">Add staff, set job titles, and control what each person can access</p>
         </div>
         <Button onClick={() => setShowCreate(true)} className="flex items-center gap-2">
           <UserPlus className="h-4 w-4" />
@@ -236,17 +274,28 @@ export default function UsersPage() {
         </Button>
       </div>
 
+      {/* Permissions guide */}
+      <Card className="bg-muted/40 border-dashed">
+        <CardContent className="p-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">What each role can see</p>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+            {ROLE_OPTIONS.map((r) => (
+              <div key={r.value} className="flex flex-col gap-1">
+                <span className={`px-2 py-0.5 rounded-full border font-medium self-start ${ROLE_COLORS[r.value]}`}>{r.label}</span>
+                <span className="text-muted-foreground pl-0.5">{r.desc}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "Admins", count: admins.length, color: "text-purple-600" },
-          { label: "Staff", count: staff.length, color: "text-blue-600" },
-          { label: "Riders", count: riders.length, color: "text-green-600" },
-        ].map((s) => (
+      <div className="grid grid-cols-5 gap-2">
+        {stats.map((s) => (
           <Card key={s.label}>
-            <CardContent className="p-4 text-center">
-              <div className={`text-2xl font-bold ${s.color}`}>{s.count}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
+            <CardContent className="p-3 text-center">
+              <div className={`text-xl font-bold ${s.color}`}>{s.count}</div>
+              <div className="text-xs text-muted-foreground mt-0.5 leading-tight">{s.label}</div>
             </CardContent>
           </Card>
         ))}
@@ -256,9 +305,11 @@ export default function UsersPage() {
         <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-12 bg-muted rounded animate-pulse" />)}</div>
       ) : (
         <>
-          <UserTable list={admins} title="Admins" />
-          <UserTable list={staff} title="Staff / Cashiers" />
-          <UserTable list={riders} title="Riders" />
+          <UserTable list={grouped.admin}   title="Admins" />
+          <UserTable list={grouped.staff}   title="Staff (POS + Production)" />
+          <UserTable list={grouped.cashier} title="Cashiers (POS only)" />
+          <UserTable list={grouped.baker}   title="Bakers / Chefs (Production only)" />
+          <UserTable list={grouped.rider}   title="Riders" />
           {(!users || users.length === 0) && (
             <p className="text-center text-muted-foreground py-10">No users found</p>
           )}
@@ -266,8 +317,8 @@ export default function UsersPage() {
       )}
 
       {/* Create User Dialog */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent>
+      <Dialog open={showCreate} onOpenChange={(v) => { setShowCreate(v); if (!v) { setForm(emptyForm); setShowPassword(false); } }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5" /> Add New User
@@ -285,6 +336,29 @@ export default function UsersPage() {
               />
             </div>
             <div>
+              <Label>Job Title <span className="text-muted-foreground text-xs">(optional — e.g. Head Chef, Samosa Chef)</span></Label>
+              <Input
+                value={form.jobTitle}
+                onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
+                placeholder="e.g. Samosa Chef"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>System Role <span className="text-muted-foreground text-xs">(controls what they see)</span></Label>
+              <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ROLE_OPTIONS.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>
+                      <span className="font-medium">{r.label}</span>
+                      <span className="text-muted-foreground ml-2 text-xs">— {r.desc}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label>Username <span className="text-muted-foreground text-xs">(used to sign in)</span></Label>
               <Input
                 value={form.username}
@@ -293,17 +367,6 @@ export default function UsersPage() {
                 className="mt-1 font-mono"
                 required
               />
-            </div>
-            <div>
-              <Label>Role</Label>
-              <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin — full system access</SelectItem>
-                  <SelectItem value="staff">Staff / Cashier — POS + Production</SelectItem>
-                  <SelectItem value="rider">Rider — deliveries only</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
             <div>
               <Label>Password</Label>
@@ -327,7 +390,7 @@ export default function UsersPage() {
               </div>
             </div>
             <div className="flex gap-2 justify-end pt-1">
-              <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => { setShowCreate(false); setForm(emptyForm); }}>Cancel</Button>
               <Button type="submit" disabled={createMutation.isPending}>
                 {createMutation.isPending ? "Creating..." : "Create User"}
               </Button>
@@ -356,6 +419,12 @@ export default function UsersPage() {
                     {ROLE_LABELS[newUserResult.role]}
                   </span>
                 </div>
+                {newUserResult.jobTitle && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Job Title</span>
+                    <span className="text-sm font-medium">{newUserResult.jobTitle}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Name</span>
                   <span className="text-sm font-semibold">{newUserResult.name}</span>
@@ -372,7 +441,7 @@ export default function UsersPage() {
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => copyToClipboard(`Username: ${newUserResult.username}\nPassword: ${newUserResult.plainPassword}`)}
+                onClick={() => copyToClipboard(`Name: ${newUserResult.name}\nUsername: ${newUserResult.username}\nPassword: ${newUserResult.plainPassword}`)}
               >
                 {copied ? <CheckCircle className="h-4 w-4 mr-2 text-green-600" /> : <Copy className="h-4 w-4 mr-2" />}
                 {copied ? "Copied!" : "Copy credentials"}

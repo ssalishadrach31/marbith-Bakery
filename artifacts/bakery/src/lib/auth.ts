@@ -15,7 +15,8 @@ export interface AuthUser {
   id: number;
   username: string;
   name: string;
-  role: "admin" | "staff" | "rider";
+  role: "admin" | "staff" | "cashier" | "baker" | "rider";
+  jobTitle?: string | null;
   employeeId?: number | null;
 }
 

@@ -1,10 +1,12 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
-import { db, usersTable, employeesTable } from "@workspace/db";
+import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
+
+const VALID_ROLES = ["admin", "staff", "cashier", "baker", "rider"] as const;
 
 function requireAdmin(req: any, res: any): { userId: number; role: string } | null {
   const authHeader = req.headers.authorization;
@@ -25,20 +27,21 @@ function requireAdmin(req: any, res: any): { userId: number; role: string } | nu
   }
 }
 
+const userFields = {
+  id: usersTable.id,
+  username: usersTable.username,
+  name: usersTable.name,
+  role: usersTable.role,
+  jobTitle: usersTable.jobTitle,
+  isActive: usersTable.isActive,
+  employeeId: usersTable.employeeId,
+  createdAt: usersTable.createdAt,
+};
+
 router.get("/users", async (req, res): Promise<void> => {
   const admin = requireAdmin(req, res);
   if (!admin) return;
-
-  const users = await db.select({
-    id: usersTable.id,
-    username: usersTable.username,
-    name: usersTable.name,
-    role: usersTable.role,
-    isActive: usersTable.isActive,
-    employeeId: usersTable.employeeId,
-    createdAt: usersTable.createdAt,
-  }).from(usersTable).orderBy(usersTable.createdAt);
-
+  const users = await db.select(userFields).from(usersTable).orderBy(usersTable.createdAt);
   res.json(users);
 });
 
@@ -46,15 +49,15 @@ router.post("/users", async (req, res): Promise<void> => {
   const admin = requireAdmin(req, res);
   if (!admin) return;
 
-  const { username, name, password, role, employeeId } = req.body;
+  const { username, name, password, role, jobTitle, employeeId } = req.body;
 
   if (!username || !name || !password || !role) {
     res.status(400).json({ error: "username, name, password and role are required" });
     return;
   }
 
-  if (!["admin", "staff", "rider"].includes(role)) {
-    res.status(400).json({ error: "role must be admin, staff, or rider" });
+  if (!VALID_ROLES.includes(role)) {
+    res.status(400).json({ error: `role must be one of: ${VALID_ROLES.join(", ")}` });
     return;
   }
 
@@ -69,17 +72,10 @@ router.post("/users", async (req, res): Promise<void> => {
     name,
     password,
     role,
+    jobTitle: jobTitle || null,
     employeeId: employeeId ?? null,
     isActive: true,
-  }).returning({
-    id: usersTable.id,
-    username: usersTable.username,
-    name: usersTable.name,
-    role: usersTable.role,
-    isActive: usersTable.isActive,
-    employeeId: usersTable.employeeId,
-    createdAt: usersTable.createdAt,
-  });
+  }).returning(userFields);
 
   res.status(201).json({ ...user, plainPassword: password });
 });
@@ -101,16 +97,7 @@ router.patch("/users/:id/status", async (req, res): Promise<void> => {
     return;
   }
 
-  const [user] = await db.update(usersTable).set({ isActive }).where(eq(usersTable.id, id)).returning({
-    id: usersTable.id,
-    username: usersTable.username,
-    name: usersTable.name,
-    role: usersTable.role,
-    isActive: usersTable.isActive,
-    employeeId: usersTable.employeeId,
-    createdAt: usersTable.createdAt,
-  });
-
+  const [user] = await db.update(usersTable).set({ isActive }).where(eq(usersTable.id, id)).returning(userFields);
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   res.json(user);
 });
@@ -127,17 +114,21 @@ router.patch("/users/:id/password", async (req, res): Promise<void> => {
     return;
   }
 
-  const [user] = await db.update(usersTable).set({ password }).where(eq(usersTable.id, id)).returning({
-    id: usersTable.id,
-    username: usersTable.username,
-    name: usersTable.name,
-    role: usersTable.role,
-    isActive: usersTable.isActive,
-    createdAt: usersTable.createdAt,
-  });
-
+  const [user] = await db.update(usersTable).set({ password }).where(eq(usersTable.id, id)).returning(userFields);
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
   res.json({ ...user, plainPassword: password });
+});
+
+router.patch("/users/:id/job-title", async (req, res): Promise<void> => {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+
+  const id = parseInt(req.params.id, 10);
+  const { jobTitle } = req.body;
+
+  const [user] = await db.update(usersTable).set({ jobTitle: jobTitle || null }).where(eq(usersTable.id, id)).returning(userFields);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  res.json(user);
 });
 
 router.delete("/users/:id", async (req, res): Promise<void> => {
@@ -145,7 +136,6 @@ router.delete("/users/:id", async (req, res): Promise<void> => {
   if (!admin) return;
 
   const id = parseInt(req.params.id, 10);
-
   if (id === admin.userId) {
     res.status(400).json({ error: "Cannot delete your own account" });
     return;

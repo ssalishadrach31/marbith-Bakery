@@ -1,9 +1,10 @@
-import { Switch, Route, Router as WouterRouter, Redirect, useLocation } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { queryClient } from "@/lib/query-client";
 import { getUser, getToken } from "@/lib/auth";
+import { getRoleHome } from "@/components/layout";
 import LoginPage from "@/pages/login";
 import DashboardPage from "@/pages/dashboard";
 import ProductionPage from "@/pages/production";
@@ -25,7 +26,7 @@ function ProtectedRoute({ component: Component, roles }: { component: React.Comp
   const token = getToken();
   const user = getUser();
   if (!token || !user) return <Redirect to="/login" />;
-  if (roles && !roles.includes(user.role)) return <Redirect to="/dashboard" />;
+  if (roles && !roles.includes(user.role)) return <Redirect to={getRoleHome(user.role)} />;
   return <Layout><Component /></Layout>;
 }
 
@@ -38,13 +39,13 @@ function Router() {
         {() => <ProtectedRoute component={DashboardPage} roles={["admin"]} />}
       </Route>
       <Route path="/production">
-        {() => <ProtectedRoute component={ProductionPage} roles={["admin", "staff"]} />}
+        {() => <ProtectedRoute component={ProductionPage} roles={["admin", "staff", "baker"]} />}
       </Route>
       <Route path="/inventory">
         {() => <ProtectedRoute component={InventoryPage} roles={["admin"]} />}
       </Route>
       <Route path="/pos">
-        {() => <ProtectedRoute component={POSPage} roles={["admin", "staff"]} />}
+        {() => <ProtectedRoute component={POSPage} roles={["admin", "staff", "cashier"]} />}
       </Route>
       <Route path="/orders">
         {() => <ProtectedRoute component={OrdersPage} roles={["admin"]} />}
@@ -74,9 +75,7 @@ function Router() {
         {() => {
           const user = getUser();
           if (!user) return <Redirect to="/login" />;
-          if (user.role === "admin") return <Redirect to="/dashboard" />;
-          if (user.role === "rider") return <Redirect to="/rider-deliveries" />;
-          return <Redirect to="/pos" />;
+          return <Redirect to={getRoleHome(user.role)} />;
         }}
       </Route>
       <Route component={NotFound} />

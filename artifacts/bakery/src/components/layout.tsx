@@ -27,19 +27,28 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["admin"] },
-  { href: "/production", label: "Production", icon: Factory, roles: ["admin", "staff"] },
-  { href: "/inventory", label: "Inventory", icon: Package, roles: ["admin"] },
-  { href: "/pos", label: "POS / Sales", icon: ShoppingCart, roles: ["admin", "staff"] },
-  { href: "/orders", label: "Orders", icon: ClipboardList, roles: ["admin"] },
-  { href: "/deliveries", label: "Deliveries", icon: Truck, roles: ["admin"] },
-  { href: "/wholesale", label: "Wholesale", icon: Store, roles: ["admin"] },
-  { href: "/employees", label: "Employees", icon: Users, roles: ["admin"] },
-  { href: "/payments", label: "Payments", icon: CreditCard, roles: ["admin"] },
-  { href: "/products", label: "Products", icon: Tag, roles: ["admin"] },
-  { href: "/users", label: "User Management", icon: ShieldCheck, roles: ["admin"] },
-  { href: "/rider-deliveries", label: "My Deliveries", icon: Truck, roles: ["rider"] },
+  { href: "/dashboard",       label: "Dashboard",       icon: LayoutDashboard, roles: ["admin"] },
+  { href: "/production",      label: "Production",      icon: Factory,         roles: ["admin", "staff", "baker"] },
+  { href: "/inventory",       label: "Inventory",       icon: Package,         roles: ["admin"] },
+  { href: "/pos",             label: "POS / Sales",     icon: ShoppingCart,    roles: ["admin", "staff", "cashier"] },
+  { href: "/orders",          label: "Orders",          icon: ClipboardList,   roles: ["admin"] },
+  { href: "/deliveries",      label: "Deliveries",      icon: Truck,           roles: ["admin"] },
+  { href: "/wholesale",       label: "Wholesale",       icon: Store,           roles: ["admin"] },
+  { href: "/employees",       label: "Employees",       icon: Users,           roles: ["admin"] },
+  { href: "/payments",        label: "Payments",        icon: CreditCard,      roles: ["admin"] },
+  { href: "/products",        label: "Products",        icon: Tag,             roles: ["admin"] },
+  { href: "/users",           label: "User Management", icon: ShieldCheck,     roles: ["admin"] },
+  { href: "/rider-deliveries",label: "My Deliveries",   icon: Truck,           roles: ["rider"] },
 ];
+
+// Where each role lands after login
+export function getRoleHome(role: string): string {
+  if (role === "admin") return "/dashboard";
+  if (role === "rider") return "/rider-deliveries";
+  if (role === "cashier") return "/pos";
+  if (role === "baker") return "/production";
+  return "/pos"; // staff
+}
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const user = getUser();
@@ -54,6 +63,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     navigate("/login");
   }
 
+  const displayTitle = user?.jobTitle || user?.role || "";
+
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       <div className="px-5 py-5 border-b border-sidebar-border">
@@ -62,7 +73,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <br />
           <span className="text-xs font-normal text-sidebar-foreground/50 tracking-normal">& Investments</span>
         </div>
-        <div className="text-sidebar-foreground/60 text-xs mt-1">{user?.name} &mdash; {user?.role}</div>
+        <div className="text-sidebar-foreground/70 text-xs font-medium mt-1.5">{user?.name}</div>
+        <div className="text-sidebar-foreground/40 text-xs">{displayTitle}</div>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {visibleNav.map((item) => {
@@ -101,12 +113,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 bg-sidebar shrink-0 border-r border-sidebar-border">
         <SidebarContent />
       </aside>
 
-      {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
@@ -122,9 +132,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        {/* Mobile header */}
         <header className="flex md:hidden items-center justify-between px-4 py-3 border-b border-border bg-card">
           <button onClick={() => setSidebarOpen(true)} className="text-foreground">
             <Menu className="h-5 w-5" />
@@ -132,8 +140,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <span className="font-bold text-primary">Marbith Bakery</span>
           <div className="w-5" />
         </header>
-
-        {/* Page content */}
         <main className="flex-1 overflow-y-auto">
           <div className="p-4 md:p-6 max-w-7xl mx-auto">
             {children}
