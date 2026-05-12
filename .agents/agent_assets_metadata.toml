@@ -6,3 +6,9 @@ id = "VcIOqx4E3Pmz6xdpJCnLN"
 uri = "file://marbith-bakery-source.zip"
 type = "unspecified"
 title = "Marbith Bakery — Full Source Code"
+
+[[outputs]]
+id = "vQwjKLSfNw7ltTeibYMlv"
+uri = "file://marbith-bakery-source.tar.gz"
+type = "unspecified"
+title = "Marbith Bakery — Source Code"
