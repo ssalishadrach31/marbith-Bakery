@@ -109,6 +109,7 @@ export default function UsersPage() {
   const [newPwd, setNewPwd] = useState("");
   const [showNewPwd, setShowNewPwd] = useState(false);
   const [resetResult, setResetResult] = useState<{ username: string; password: string } | null>(null);
+  const [deleteModal, setDeleteModal] = useState<SystemUser | null>(null);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -144,10 +145,15 @@ export default function UsersPage() {
   }
 
   async function handleDelete(user: SystemUser) {
-    if (!confirm(`Delete user "${user.name}" (${user.username})? This cannot be undone.`)) return;
+    setDeleteModal(user);
+  }
+
+  async function confirmDelete() {
+    if (!deleteModal) return;
     try {
-      await deleteMutation.mutateAsync(user.id);
+      await deleteMutation.mutateAsync(deleteModal.id);
       toast({ title: "User deleted" });
+      setDeleteModal(null);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -530,6 +536,41 @@ export default function UsersPage() {
                 {copied ? "Copied!" : "Copy credentials"}
               </Button>
               <Button className="w-full" onClick={() => setResetResult(null)}>Done</Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteModal} onOpenChange={(v) => { if (!v) setDeleteModal(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="h-5 w-5" /> Delete User?
+            </DialogTitle>
+          </DialogHeader>
+          {deleteModal && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Are you sure you want to permanently delete <strong>{deleteModal.name}</strong>?
+                This cannot be undone.
+              </p>
+              <div className="bg-muted/40 rounded-lg p-3 text-sm font-mono text-muted-foreground">
+                {deleteModal.username}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setDeleteModal(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  disabled={deleteMutation.isPending}
+                  onClick={confirmDelete}
+                >
+                  {deleteMutation.isPending ? "Deleting..." : "Yes, Delete"}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

@@ -11,3 +11,4 @@ export * from "./wholesale";
 export * from "./payments";
 export * from "./shop-receipts";
 export * from "./daily-counts";
+export * from "./expenses";
