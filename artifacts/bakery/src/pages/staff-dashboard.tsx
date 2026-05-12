@@ -10,7 +10,8 @@ import {
   Factory, ShoppingCart, Package, Wallet,
   Clock, RefreshCw, CheckCircle2,
   Truck, ChevronRight, Plus, Users,
-  IceCream, Coffee, Droplets,
+  IceCream, Coffee, Droplets, ChevronLeft,
+  CalendarDays, ArrowRight,
 } from "lucide-react";
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -64,26 +65,62 @@ function CountSection({
 }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
+  // Only count sold when BOTH opening and closing are set
   const totalSold = entries.reduce((s, e) => {
-    const sold = (e.opening ?? 0) - (e.closing ?? 0);
-    return s + (sold > 0 ? sold : 0);
+    if (e.opening === undefined || e.closing === undefined) return s;
+    const sold = Math.max(0, e.opening - e.closing);
+    return s + sold;
   }, 0);
   const totalRevenue = entries.reduce((s, e) => {
-    const sold = (e.opening ?? 0) - (e.closing ?? 0);
-    return s + (sold > 0 ? sold * e.price : 0);
+    if (e.opening === undefined || e.closing === undefined) return s;
+    const sold = Math.max(0, e.opening - e.closing);
+    return s + sold * e.price;
   }, 0);
+
+  const allComplete = entries.length > 0 && entries.every((e) => e.opening !== undefined && e.closing !== undefined);
+  const hasOpening = entries.some((e) => e.opening !== undefined);
+  const hasClosing = entries.some((e) => e.closing !== undefined);
 
   return (
     <Card>
       <CardContent className="p-5">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-2">
           <span className={`text-${color}-600`}>{icon}</span>
           <h2 className="font-semibold">{title}</h2>
-          <div className="ml-auto flex gap-3 text-sm">
-            <span className="text-muted-foreground">Sold: <span className="font-bold text-foreground">{totalSold}</span></span>
-            <span className="text-muted-foreground">Revenue: <span className={`font-bold text-${color}-700`}>{formatUGX(totalRevenue)}</span></span>
+          <div className="ml-auto flex gap-3 text-sm items-center">
+            {allComplete ? (
+              <>
+                <span className="text-muted-foreground">Sold: <span className="font-bold text-foreground">{totalSold}</span></span>
+                <span className={`font-bold text-${color}-700`}>{formatUGX(totalRevenue)}</span>
+              </>
+            ) : hasOpening && !hasClosing ? (
+              <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 flex items-center gap-1">
+                <Clock className="h-3 w-3" /> Opening set — enter closing to see sales
+              </span>
+            ) : !hasOpening ? (
+              <span className="text-xs text-muted-foreground">Enter opening count to begin</span>
+            ) : (
+              <span className="text-xs text-yellow-600 bg-yellow-50 border border-yellow-200 rounded-full px-2 py-0.5">Partial counts</span>
+            )}
           </div>
         </div>
+
+        {/* Progress bar */}
+        {entries.length > 0 && (
+          <div className="flex gap-1 mb-4">
+            {entries.map((e) => {
+              const bothDone = e.opening !== undefined && e.closing !== undefined;
+              const onlyOpen = e.opening !== undefined && e.closing === undefined;
+              return (
+                <div
+                  key={e.productId}
+                  className={`flex-1 h-1.5 rounded-full ${bothDone ? `bg-${color}-400` : onlyOpen ? "bg-blue-300" : "bg-muted"}`}
+                  title={e.productName}
+                />
+              );
+            })}
+          </div>
+        )}
 
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-sm">
@@ -195,17 +232,21 @@ function CountSection({
                     <td className="py-2.5 px-3 text-center">
                       {sold !== null ? (
                         <span className={`font-bold text-base ${sold === 0 ? "text-muted-foreground" : "text-green-700"}`}>{sold}</span>
+                      ) : entry.opening !== undefined && entry.closing === undefined ? (
+                        <span className="text-xs text-blue-500 flex items-center justify-center gap-0.5">
+                          <ArrowRight className="h-3 w-3" /> closing?
+                        </span>
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </td>
 
                     {/* Revenue */}
                     <td className="py-2.5 px-3 text-right font-semibold">
                       {revenue !== null ? (
-                        <span className={revenue === 0 ? "text-muted-foreground" : "text-foreground"}>{formatUGX(revenue)}</span>
+                        <span className={revenue === 0 ? "text-muted-foreground" : "text-green-700 font-bold"}>{formatUGX(revenue)}</span>
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </td>
                   </tr>
@@ -221,7 +262,11 @@ function CountSection({
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">Click "Enter" to record a count. Click ✎ to edit an existing count.</p>
+        <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="w-3 h-1.5 rounded-full bg-blue-300 inline-block" /> Opening set</span>
+          <span className="flex items-center gap-1"><span className={`w-3 h-1.5 rounded-full bg-${color}-400 inline-block`} /> Both set (sold calculated)</span>
+          <span className="ml-auto">Click ✎ to edit an existing count.</span>
+        </div>
       </CardContent>
     </Card>
   );
@@ -253,9 +298,27 @@ export default function StaffDashboardPage() {
     queryFn: () => apiFetch("/products"),
   });
 
+  const todayStr = new Date().toISOString().split("T")[0];
+  const [countsDate, setCountsDate] = useState(todayStr);
+
+  function prevCountDay() {
+    const d = new Date(countsDate + "T12:00:00");
+    d.setDate(d.getDate() - 1);
+    setCountsDate(d.toISOString().split("T")[0]);
+  }
+  function nextCountDay() {
+    const d = new Date(countsDate + "T12:00:00");
+    d.setDate(d.getDate() + 1);
+    if (d.toISOString().split("T")[0] <= todayStr) setCountsDate(d.toISOString().split("T")[0]);
+  }
+  const isToday = countsDate === todayStr;
+  const countsDateLabel = isToday
+    ? "Today"
+    : new Date(countsDate + "T12:00:00").toLocaleDateString("en-UG", { weekday: "short", day: "numeric", month: "short" });
+
   const { data: dailyCounts } = useQuery<any[]>({
-    queryKey: ["daily-counts"],
-    queryFn: () => apiFetch("/daily-counts"),
+    queryKey: ["daily-counts", countsDate],
+    queryFn: () => apiFetch(`/daily-counts?date=${countsDate}`),
     refetchInterval: 60_000,
   });
 
@@ -276,14 +339,14 @@ export default function StaffDashboardPage() {
   const saveCountMutation = useMutation({
     mutationFn: (data: object) => apiFetch("/daily-counts", { method: "POST", body: JSON.stringify(data) }),
     onSuccess: (result: any) => {
-      qc.invalidateQueries({ queryKey: ["daily-counts"] });
+      qc.invalidateQueries({ queryKey: ["daily-counts", countsDate] });
       toast({ title: "Count saved", description: `${result.countType === "opening" ? "Opening" : "Closing"}: ${result.quantity} × ${result.productName}` });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   function handleSaveCount(productId: number, countType: "opening" | "closing", quantity: number) {
-    saveCountMutation.mutate({ productId, countType, quantity });
+    saveCountMutation.mutate({ productId, countType, quantity, countDate: countsDate });
   }
 
   if (isLoading) {
@@ -579,6 +642,35 @@ export default function StaffDashboardPage() {
         </Card>
       )}
 
+      {/* ── COUNTED STOCK — DATE HEADER ── */}
+      <div className="flex items-center gap-3 pt-1">
+        <div className="flex items-center gap-1.5">
+          <CalendarDays className="h-4 w-4 text-primary" />
+          <span className="font-semibold text-sm">Ice Cream, Juice & Coffee Counts</span>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={prevCountDay} className="p-1.5 rounded-lg border border-border hover:bg-muted transition-colors">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-background text-sm font-medium min-w-28 justify-center">
+            {isToday && <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />}
+            {countsDateLabel}
+          </div>
+          <button
+            onClick={nextCountDay}
+            disabled={isToday}
+            className="p-1.5 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          {!isToday && (
+            <button onClick={() => setCountsDate(todayStr)} className="text-xs text-primary hover:underline font-medium">
+              Back to today
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* ── ICE CREAM COUNT ── */}
       <CountSection
         title="Ice Cream Count"
@@ -608,6 +700,69 @@ export default function StaffDashboardPage() {
         onSave={handleSaveCount}
         isSaving={saveCountMutation.isPending}
       />
+
+      {/* ── COUNTED SALES SUMMARY (always visible) ── */}
+      <Card className="border-primary/20">
+        <CardContent className="p-5">
+          <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+            <ShoppingCart className="h-4 w-4 text-primary" />
+            {isToday ? "Today's" : `${countsDateLabel}'s`} Counted Sales Summary
+          </h3>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center px-3 py-2 bg-pink-50 border border-pink-100 rounded-lg text-sm">
+              <span className="flex items-center gap-2 text-pink-700">
+                <IceCream className="h-4 w-4" /> Ice Cream (Cones + Tins)
+              </span>
+              <div className="text-right">
+                {iceCreamRevenue > 0 ? (
+                  <span className="font-bold text-pink-700">{formatUGX(iceCreamRevenue)}</span>
+                ) : iceCreamEntries.some(e => e.opening !== undefined) ? (
+                  <span className="text-xs text-blue-500 flex items-center gap-1"><ArrowRight className="h-3 w-3" /> Enter closing count</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">No counts yet</span>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-between items-center px-3 py-2 bg-orange-50 border border-orange-100 rounded-lg text-sm">
+              <span className="flex items-center gap-2 text-orange-700">
+                <Droplets className="h-4 w-4" /> Juice (Small + Big Tins)
+              </span>
+              <div className="text-right">
+                {juiceRevenue > 0 ? (
+                  <span className="font-bold text-orange-700">{formatUGX(juiceRevenue)}</span>
+                ) : juiceEntries.some(e => e.opening !== undefined) ? (
+                  <span className="text-xs text-blue-500 flex items-center gap-1"><ArrowRight className="h-3 w-3" /> Enter closing count</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">No counts yet</span>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-between items-center px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg text-sm">
+              <span className="flex items-center gap-2 text-amber-700">
+                <Coffee className="h-4 w-4" /> Coffee & Tea
+              </span>
+              <div className="text-right">
+                {coffeeRevenue > 0 ? (
+                  <span className="font-bold text-amber-700">{formatUGX(coffeeRevenue)}</span>
+                ) : coffeeEntries.some(e => e.opening !== undefined) ? (
+                  <span className="text-xs text-blue-500 flex items-center gap-1"><ArrowRight className="h-3 w-3" /> Enter closing count</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">No counts yet</span>
+                )}
+              </div>
+            </div>
+            {(iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0) && (
+              <div className="flex justify-between items-center px-3 py-2.5 bg-primary/5 border border-primary/20 rounded-lg font-bold mt-1">
+                <span className="text-sm">Total Counted Sales</span>
+                <span className="text-primary">{formatUGX(iceCreamRevenue + juiceRevenue + coffeeRevenue)}</span>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-3 bg-muted/30 rounded p-2">
+            Sold = Opening count minus Closing count. Enter both opening and closing for each item to see the sales total.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* ── STEP 3: BAKED GOODS SALES TODAY ── */}
       {showSales && (
@@ -715,32 +870,19 @@ export default function StaffDashboardPage() {
             </div>
           )}
 
-          {/* Ice cream + juice count totals summary */}
-          {(iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0) && (
-            <div className="mb-4 space-y-2">
-              <p className="text-sm font-semibold text-muted-foreground">Counted Sales Summary</p>
+          {/* Grand Total (POS + Counted) */}
+          {(sales.totalRevenue > 0 || iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0) && (
+            <div className="mb-4 space-y-1.5">
               {sales.totalRevenue > 0 && (
                 <div className="flex justify-between text-sm px-3 py-2 bg-purple-50 border border-purple-100 rounded-lg">
                   <span className="flex items-center gap-2"><ShoppingCart className="h-4 w-4 text-purple-500" /> POS Sales (Baked Goods + Drinks)</span>
                   <span className="font-bold text-purple-700">{formatUGX(sales.totalRevenue)}</span>
                 </div>
               )}
-              {iceCreamRevenue > 0 && (
-                <div className="flex justify-between text-sm px-3 py-2 bg-pink-50 border border-pink-100 rounded-lg">
-                  <span className="flex items-center gap-2"><IceCream className="h-4 w-4 text-pink-500" /> Ice Cream (Cones + Tins)</span>
-                  <span className="font-bold text-pink-700">{formatUGX(iceCreamRevenue)}</span>
-                </div>
-              )}
-              {juiceRevenue > 0 && (
-                <div className="flex justify-between text-sm px-3 py-2 bg-orange-50 border border-orange-100 rounded-lg">
-                  <span className="flex items-center gap-2"><Droplets className="h-4 w-4 text-orange-500" /> Juice (Small + Big Tins)</span>
-                  <span className="font-bold text-orange-700">{formatUGX(juiceRevenue)}</span>
-                </div>
-              )}
-              {coffeeRevenue > 0 && (
-                <div className="flex justify-between text-sm px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg">
-                  <span className="flex items-center gap-2"><Coffee className="h-4 w-4 text-amber-600" /> Coffee &amp; Tea</span>
-                  <span className="font-bold text-amber-700">{formatUGX(coffeeRevenue)}</span>
+              {(iceCreamRevenue + juiceRevenue + coffeeRevenue) > 0 && (
+                <div className="flex justify-between text-sm px-3 py-2 bg-green-50 border border-green-100 rounded-lg">
+                  <span className="flex items-center gap-2"><IceCream className="h-4 w-4 text-green-500" /> Ice Cream + Juice + Coffee (counted)</span>
+                  <span className="font-bold text-green-700">{formatUGX(iceCreamRevenue + juiceRevenue + coffeeRevenue)}</span>
                 </div>
               )}
               <div className="flex justify-between items-center px-3 py-3 bg-primary/5 border border-primary/20 rounded-lg font-bold">
