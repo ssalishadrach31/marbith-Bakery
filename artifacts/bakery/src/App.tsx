@@ -27,6 +27,7 @@ import DevToolsPage from "@/pages/dev-tools";
 import MonthlyReportPage from "@/pages/monthly-report";
 import ProfilePage from "@/pages/profile";
 import CommunicationsPage from "@/pages/communications";
+import SalesAnalyticsPage from "@/pages/sales-analytics";
 import Layout from "@/components/layout";
 import NotFound from "@/pages/not-found";
 
@@ -111,6 +112,9 @@ function Router() {
       </Route>
       <Route path="/deliveries">
         {() => <ProtectedRoute component={DeliveriesPage} roles={["admin", "staff"]} />}
+      </Route>
+      <Route path="/sales-analytics">
+        {() => <ProtectedRoute component={SalesAnalyticsPage} roles={["admin"]} />}
       </Route>
       <Route path="/daily-report">
         {() => <ProtectedRoute component={DailyReportPage} roles={["admin", "staff"]} />}
