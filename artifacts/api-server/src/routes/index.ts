@@ -19,6 +19,8 @@ import expensesRouter from "./expenses";
 import approvalsRouter from "./approvals";
 import notificationsRouter from "./notifications";
 import devToolsRouter from "./dev-tools";
+import shiftClosingsRouter from "./shift-closings";
+import reportsRouter from "./reports";
 
 const router: IRouter = Router();
 
@@ -42,5 +44,7 @@ router.use(expensesRouter);
 router.use(approvalsRouter);
 router.use(notificationsRouter);
 router.use(devToolsRouter);
+router.use(shiftClosingsRouter);
+router.use(reportsRouter);
 
 export default router;

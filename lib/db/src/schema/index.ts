@@ -16,3 +16,4 @@ export * from "./pending-approvals";
 export * from "./notifications";
 export * from "./salary-payments";
 export * from "./shops";
+export * from "./shift-closings";

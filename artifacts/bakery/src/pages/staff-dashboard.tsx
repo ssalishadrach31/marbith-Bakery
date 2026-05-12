@@ -12,6 +12,7 @@ import {
   Truck, ChevronRight, Plus, Users,
   IceCream, Coffee, Droplets, ChevronLeft,
   CalendarDays, ArrowRight, ChevronDown,
+  History, MoonStar, X, AlertCircle,
 } from "lucide-react";
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -170,17 +171,9 @@ function CountSection({
                     <td className="py-2.5 px-3 font-medium">{entry.productName}</td>
                     <td className="py-2.5 px-3 text-center text-muted-foreground">{formatUGX(entry.price)}</td>
 
-                    {/* Opening count */}
+                    {/* Opening count — drafts take priority so re-edit works */}
                     <td className="py-2 px-2 text-center">
-                      {entry.opening !== undefined ? (
-                        <div className="flex items-center justify-center gap-1">
-                          <span className="font-bold text-blue-700 text-base">{entry.opening}</span>
-                          <button
-                            className="text-xs text-muted-foreground hover:text-foreground ml-1"
-                            onClick={() => setDrafts((d) => ({ ...d, [openKey]: String(entry.opening) }))}
-                          >✎</button>
-                        </div>
-                      ) : drafts[openKey] !== undefined ? (
+                      {drafts[openKey] !== undefined ? (
                         <div className="flex items-center gap-1 justify-center">
                           <Input
                             type="number"
@@ -197,6 +190,14 @@ function CountSection({
                             onClick={() => saveEntry(entry.productId, "opening", openKey)}
                           >✓</button>
                         </div>
+                      ) : entry.opening !== undefined ? (
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="font-bold text-blue-700 text-base">{entry.opening}</span>
+                          <button
+                            className="text-xs text-muted-foreground hover:text-foreground ml-1"
+                            onClick={() => setDrafts((d) => ({ ...d, [openKey]: String(entry.opening) }))}
+                          >✎</button>
+                        </div>
                       ) : (
                         <button
                           className="text-xs border border-dashed border-blue-300 text-blue-500 rounded px-2 py-1 hover:bg-blue-50"
@@ -205,17 +206,9 @@ function CountSection({
                       )}
                     </td>
 
-                    {/* Closing count */}
+                    {/* Closing count — drafts take priority so re-edit works */}
                     <td className="py-2 px-2 text-center">
-                      {entry.closing !== undefined ? (
-                        <div className="flex items-center justify-center gap-1">
-                          <span className="font-bold text-purple-700 text-base">{entry.closing}</span>
-                          <button
-                            className="text-xs text-muted-foreground hover:text-foreground ml-1"
-                            onClick={() => setDrafts((d) => ({ ...d, [closeKey]: String(entry.closing) }))}
-                          >✎</button>
-                        </div>
-                      ) : drafts[closeKey] !== undefined ? (
+                      {drafts[closeKey] !== undefined ? (
                         <div className="flex items-center gap-1 justify-center">
                           <Input
                             type="number"
@@ -231,6 +224,14 @@ function CountSection({
                             disabled={isSaving}
                             onClick={() => saveEntry(entry.productId, "closing", closeKey)}
                           >✓</button>
+                        </div>
+                      ) : entry.closing !== undefined ? (
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="font-bold text-purple-700 text-base">{entry.closing}</span>
+                          <button
+                            className="text-xs text-muted-foreground hover:text-foreground ml-1"
+                            onClick={() => setDrafts((d) => ({ ...d, [closeKey]: String(entry.closing) }))}
+                          >✎</button>
                         </div>
                       ) : (
                         <button
@@ -342,8 +343,42 @@ export default function StaffDashboardPage() {
   function scrollTo(id: string) {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    else toggleSection(id); // fallback: expand if somehow not found
+    else toggleSection(id);
   }
+
+  // ── Shift Closing ─────────────────────────────────────────────────────────
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+
+  const { data: shiftClosings } = useQuery<any[]>({
+    queryKey: ["shift-closings"],
+    queryFn: () => apiFetch("/shift-closings"),
+    staleTime: 30_000,
+  });
+
+  const todayClosing = (shiftClosings ?? []).find((c: any) => c.shiftDate === todayStr);
+  const isTodayClosed = !!todayClosing;
+
+  const closeDayMutation = useMutation({
+    mutationFn: () => apiFetch("/shift-closings", { method: "POST", body: JSON.stringify({ shiftDate: todayStr }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shift-closings"] });
+      qc.invalidateQueries({ queryKey: ["shift-history"] });
+      setShowCloseConfirm(false);
+      toast({ title: "Day Closed", description: `Shift for ${today} has been marked as closed.` });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const { data: shiftHistory, isLoading: historyLoading } = useQuery<any[]>({
+    queryKey: ["shift-history"],
+    queryFn: () => apiFetch("/reports/shift-history?days=30"),
+    enabled: showHistory,
+    staleTime: 60_000,
+  });
+
+  const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
+  function toggleHistoryDay(date: string) { setExpandedDays((d) => ({ ...d, [date]: !d[date] })); }
 
   const [showReceiptForm, setShowReceiptForm] = useState(false);
   const [receiptForm, setReceiptForm] = useState({ productId: "", quantityReceived: "", notes: "" });
@@ -490,6 +525,20 @@ export default function StaffDashboardPage() {
         </div>
       </div>
 
+      {/* Closed-day banner */}
+      {isTodayClosed && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-green-800">
+          <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="font-semibold text-sm">Day Closed</span>
+            <span className="text-xs text-green-700 ml-2">
+              Closed by {todayClosing.closedBy} at {new Date(todayClosing.closedAt).toLocaleTimeString("en-UG", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          </div>
+          <button onClick={() => setShowHistory(true)} className="text-xs underline text-green-700 shrink-0">View History</button>
+        </div>
+      )}
+
       {/* Workflow steps — tap any badge to jump to that section */}
       <div className="flex items-center gap-2 flex-wrap">
         <StepBadge n={1} label="Production" done={hasProduction} onClick={() => scrollTo("section-production")} />
@@ -498,8 +547,123 @@ export default function StaffDashboardPage() {
         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
         <StepBadge n={3} label="Sales" done={hasSales} onClick={() => scrollTo("section-sales")} />
         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-        <StepBadge n={4} label="End of Day" done={false} onClick={() => scrollTo("section-endofday")} />
+        <StepBadge n={4} label="End of Day" done={isTodayClosed} onClick={() => scrollTo("section-endofday")} />
+        <button
+          onClick={() => setShowHistory((v) => !v)}
+          className="ml-auto flex items-center gap-1.5 text-xs border border-border rounded-full px-3 py-1.5 hover:bg-muted transition-colors text-muted-foreground"
+        >
+          <History className="h-3.5 w-3.5" /> History
+        </button>
       </div>
+
+      {/* ── SHIFT HISTORY ── */}
+      {showHistory && (
+        <Card className="border-blue-200 bg-blue-50/30">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <History className="h-4 w-4 text-blue-600" />
+              <h2 className="font-semibold">Shift History — Last 30 Days</h2>
+              <button onClick={() => setShowHistory(false)} className="ml-auto text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            {historyLoading ? (
+              <div className="space-y-2">
+                {[1,2,3].map(i => <div key={i} className="h-10 bg-muted rounded animate-pulse" />)}
+              </div>
+            ) : !shiftHistory || shiftHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">No history yet — data will appear after your first day of activity.</p>
+            ) : (
+              <div className="space-y-2">
+                {shiftHistory.map((day: any) => {
+                  const dateLabel = new Date(day.date + "T12:00:00").toLocaleDateString("en-UG", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+                  const expanded = !!expandedDays[day.date];
+                  return (
+                    <div key={day.date} className="rounded-lg border border-border bg-background overflow-hidden">
+                      <button
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-muted/30 transition-colors"
+                        onClick={() => toggleHistoryDay(day.date)}
+                      >
+                        <span className="font-medium w-40 text-left">{dateLabel}</span>
+                        {day.closing ? (
+                          <span className="flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                            <CheckCircle2 className="h-3 w-3" /> Closed
+                          </span>
+                        ) : (
+                          <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" /> Not closed
+                          </span>
+                        )}
+                        <span className="ml-auto text-muted-foreground">POS: <span className="font-semibold text-foreground">{formatUGX(day.posRevenue)}</span></span>
+                        <span className="text-muted-foreground ml-3">Counted: <span className="font-semibold text-foreground">{formatUGX(day.countedRevenue)}</span></span>
+                        <span className="ml-3 font-bold text-primary">{formatUGX(day.grandTotal)}</span>
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground ml-2 transition-transform ${expanded ? "rotate-180" : ""}`} />
+                      </button>
+                      {expanded && (
+                        <div className="border-t border-border px-4 pb-4 pt-3 space-y-3">
+                          {/* Goods received */}
+                          {day.items && day.items.length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">Goods Received from Bakery</p>
+                              <div className="flex flex-wrap gap-2">
+                                {day.items.map((item: any, i: number) => (
+                                  <span key={i} className="text-xs bg-blue-50 text-blue-800 border border-blue-100 rounded px-2 py-1">
+                                    {item.productName}: <strong>{item.quantity}</strong>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {/* Count details */}
+                          {day.counts && day.counts.length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">Counted Stock Sold</p>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="border-b border-border">
+                                      <th className="text-left py-1.5 pr-3 font-medium text-muted-foreground">Product</th>
+                                      <th className="text-center py-1.5 px-2 font-medium text-blue-600">Opening</th>
+                                      <th className="text-center py-1.5 px-2 font-medium text-purple-600">Closing</th>
+                                      <th className="text-center py-1.5 px-2 font-medium text-green-600">Sold</th>
+                                      <th className="text-right py-1.5 pl-2 font-medium text-primary">Revenue</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {day.counts.map((c: any, i: number) => (
+                                      <tr key={i} className="border-b border-border last:border-0">
+                                        <td className="py-1.5 pr-3 font-medium">{c.productName}</td>
+                                        <td className="py-1.5 px-2 text-center text-blue-700">{c.opening}</td>
+                                        <td className="py-1.5 px-2 text-center text-purple-700">{c.closing}</td>
+                                        <td className="py-1.5 px-2 text-center font-bold text-green-700">{c.sold}</td>
+                                        <td className="py-1.5 pl-2 text-right text-primary">{formatUGX(c.revenue)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+                          {/* POS summary */}
+                          {day.posTransactions > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              POS: {day.posTransactions} transaction{day.posTransactions !== 1 ? "s" : ""} · <strong>{formatUGX(day.posRevenue)}</strong>
+                            </p>
+                          )}
+                          {day.closing && (
+                            <p className="text-xs text-green-700 flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Closed by <strong>{day.closing.closedBy}</strong> at {new Date(day.closing.closedAt).toLocaleTimeString("en-UG", { hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── STEP 1: PRODUCTION ── */}
       {showProduction && (
@@ -1016,6 +1180,66 @@ export default function StaffDashboardPage() {
             </>
           )}
           </>}
+        </CardContent>
+      </Card>
+
+      {/* ── CLOSE DAY ── */}
+      <Card className={`border-2 ${isTodayClosed ? "border-green-200 bg-green-50/40" : "border-dashed border-primary/30"}`}>
+        <CardContent className="p-5">
+          <div className="flex items-center gap-3">
+            <MoonStar className={`h-5 w-5 ${isTodayClosed ? "text-green-600" : "text-primary"}`} />
+            <div className="flex-1">
+              <h3 className="font-semibold text-sm">{isTodayClosed ? "Today's Shift is Closed" : "Close Today's Shift"}</h3>
+              {isTodayClosed ? (
+                <p className="text-xs text-green-700 mt-0.5">
+                  Closed by <strong>{todayClosing.closedBy}</strong> at {new Date(todayClosing.closedAt).toLocaleTimeString("en-UG", { hour: "2-digit", minute: "2-digit" })} — grand total <strong>{formatUGX(grandTotal)}</strong>
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Mark this day as done. All counts and sales are saved and will appear in the history and monthly report.
+                </p>
+              )}
+            </div>
+            {isTodayClosed ? (
+              <button
+                onClick={() => closeDayMutation.mutate()}
+                disabled={closeDayMutation.isPending}
+                className="text-xs text-green-700 underline shrink-0"
+              >
+                Re-close
+              </button>
+            ) : (
+              <Button
+                onClick={() => setShowCloseConfirm(true)}
+                className="shrink-0 bg-primary text-primary-foreground"
+                disabled={closeDayMutation.isPending}
+              >
+                <MoonStar className="h-4 w-4 mr-1.5" /> Close Day
+              </Button>
+            )}
+          </div>
+
+          {/* Confirmation dialog inline */}
+          {showCloseConfirm && !isTodayClosed && (
+            <div className="mt-4 p-4 bg-background border border-border rounded-xl space-y-3">
+              <p className="text-sm font-medium">Confirm closing today's shift?</p>
+              <p className="text-xs text-muted-foreground">
+                This records a formal end to the shift for <strong>{today}</strong>. You can still add or edit data after closing — this is just a marker.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => closeDayMutation.mutate()}
+                  disabled={closeDayMutation.isPending}
+                >
+                  {closeDayMutation.isPending ? "Closing..." : "Yes, Close Day"}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setShowCloseConfirm(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

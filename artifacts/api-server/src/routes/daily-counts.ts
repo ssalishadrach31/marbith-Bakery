@@ -38,7 +38,7 @@ router.get("/daily-counts", async (req, res): Promise<void> => {
     .leftJoin(productsTable, eq(dailyCountsTable.productId, productsTable.id))
     .where(
       category
-        ? and(eq(dailyCountsTable.countDate, date), eq(productsTable.category, category))
+        ? and(eq(dailyCountsTable.countDate, date), eq(productsTable.category, category as any))
         : eq(dailyCountsTable.countDate, date)
     )
     .orderBy(productsTable.category, productsTable.name, dailyCountsTable.countType);
