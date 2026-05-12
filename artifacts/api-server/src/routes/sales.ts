@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { db, salesTable, saleItemsTable, productsTable, inventoryTable } from "@workspace/db";
 import { eq, sql, and, inArray } from "drizzle-orm";
 import { CreateSaleBody, GetSaleParams, ListSalesQueryParams, GetDailySalesSummaryQueryParams } from "@workspace/api-zod";
+import { notifyByRoles } from "../lib/notify";
 
 const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
 function getUserName(req: any): string {
@@ -137,6 +138,17 @@ router.post("/sales", async (req, res): Promise<void> => {
       await db.update(inventoryTable).set({ currentStock: Math.max(0, inv.currentStock - item.quantity), lastUpdated: new Date() }).where(eq(inventoryTable.productId, item.productId));
     }
   }
+
+  // Notify admins about the new sale (fire-and-forget)
+  const itemSummary = saleItems.length === 1
+    ? `${saleItems[0].quantity} item`
+    : `${saleItems.length} products`;
+  notifyByRoles(["admin"], {
+    type: "sale",
+    title: "New Sale Completed",
+    message: `${getUserName(req)} sold ${itemSummary} · UGX ${totalAmount.toLocaleString()} via ${paymentMethod.replace("_", " ")}`,
+    relatedId: sale.id,
+  });
 
   res.status(201).json({ ...sale, itemCount: saleItems.length });
 });

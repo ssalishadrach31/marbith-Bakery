@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { db, productionTable, productsTable, inventoryTable } from "@workspace/db";
 import { eq, sql, gte, and } from "drizzle-orm";
 import { CreateProductionBody, ListProductionQueryParams } from "@workspace/api-zod";
+import { notifyByRoles } from "../lib/notify";
 
 const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
 function getUserName(req: any): string {
@@ -71,7 +72,17 @@ router.post("/production", async (req, res): Promise<void> => {
   }
 
   const [product] = await db.select().from(productsTable).where(eq(productsTable.id, record.productId));
-  res.status(201).json({ ...record, productName: product?.name ?? "Unknown" });
+  const productName = product?.name ?? "Unknown";
+
+  // Notify admins + all production roles (baker, staff)
+  notifyByRoles(["admin", "staff", "baker"], {
+    type: "production",
+    title: "Production Batch Recorded",
+    message: `${getUserName(req)} baked ${parsed.data.quantity} × ${productName}${parsed.data.notes ? ` (${parsed.data.notes})` : ""}`,
+    relatedId: record.id,
+  });
+
+  res.status(201).json({ ...record, productName });
 });
 
 router.get("/production/today-summary", async (_req, res): Promise<void> => {

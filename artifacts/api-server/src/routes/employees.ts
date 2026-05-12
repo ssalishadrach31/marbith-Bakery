@@ -1,7 +1,16 @@
 import { Router, type IRouter } from "express";
-import { db, employeesTable, attendanceTable, deliveriesTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import jwt from "jsonwebtoken";
+import { db, employeesTable, attendanceTable, deliveriesTable, salaryPaymentsTable } from "@workspace/db";
+import { eq, sql, desc } from "drizzle-orm";
 import { CreateEmployeeBody, GetEmployeeParams, UpdateEmployeeBody, UpdateEmployeeParams, DeleteEmployeeParams, CheckInBody, CheckOutParams, ListAttendanceQueryParams } from "@workspace/api-zod";
+import { notifyAllActiveUsers } from "../lib/notify";
+
+const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
+function getUserName(req: any): string {
+  const h = req.headers.authorization;
+  if (!h?.startsWith("Bearer ")) return "Admin";
+  try { const p = jwt.verify(h.slice(7), JWT_SECRET) as any; return p.name || "Admin"; } catch { return "Admin"; }
+}
 
 const router: IRouter = Router();
 
@@ -108,6 +117,58 @@ router.put("/attendance/:id/check-out", async (req, res): Promise<void> => {
 
   const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, updated.employeeId));
   res.json({ ...updated, employeeName: emp?.name ?? "Unknown", checkIn: updated.checkIn.toISOString(), checkOut: updated.checkOut?.toISOString() ?? null });
+});
+
+// ── Salary Payments ──
+router.get("/salary-payments", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select()
+    .from(salaryPaymentsTable)
+    .orderBy(desc(salaryPaymentsTable.paidAt));
+  res.json(rows.map((r) => ({ ...r, paidAt: r.paidAt.toISOString() })));
+});
+
+router.get("/salary-payments/employee/:employeeId", async (req, res): Promise<void> => {
+  const empId = parseInt(req.params.employeeId as string, 10);
+  if (isNaN(empId)) { res.status(400).json({ error: "Invalid employeeId" }); return; }
+  const rows = await db
+    .select()
+    .from(salaryPaymentsTable)
+    .where(eq(salaryPaymentsTable.employeeId, empId))
+    .orderBy(desc(salaryPaymentsTable.paidAt));
+  res.json(rows.map((r) => ({ ...r, paidAt: r.paidAt.toISOString() })));
+});
+
+router.post("/salary-payments", async (req, res): Promise<void> => {
+  const { employeeId, amount, month, method, notes } = req.body;
+  if (!employeeId || !amount || !month) {
+    res.status(400).json({ error: "employeeId, amount, and month are required" });
+    return;
+  }
+
+  const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, employeeId));
+  if (!emp) { res.status(404).json({ error: "Employee not found" }); return; }
+
+  const paidBy = getUserName(req);
+  const [payment] = await db.insert(salaryPaymentsTable).values({
+    employeeId,
+    employeeName: emp.name,
+    amount,
+    month,
+    method: method ?? "cash",
+    notes: notes ?? null,
+    paidBy,
+  }).returning();
+
+  // Notify everyone — salary transparency for the whole team
+  notifyAllActiveUsers({
+    type: "salary",
+    title: "Salary Payment Recorded",
+    message: `${emp.name}'s salary for ${month} — UGX ${Number(amount).toLocaleString()} paid via ${(method ?? "cash").replace("_", " ")} by ${paidBy}`,
+    relatedId: payment.id,
+  });
+
+  res.status(201).json({ ...payment, paidAt: payment.paidAt.toISOString() });
 });
 
 export default router;
