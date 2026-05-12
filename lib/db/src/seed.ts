@@ -53,9 +53,9 @@ async function seed() {
   if (existingUsers.length === 0) {
     await db.insert(usersTable).values([
       {
-        username: "admin",
+        username: "shadrachssali@gmail.com",
         password: "admin123",
-        name: "John Doe",
+        name: "Shadrach Ssali",
         role: "admin",
         employeeId: adminEmpId,
         isActive: true,

@@ -70,9 +70,8 @@ export default function LoginPage() {
             </Button>
           </form>
           <div className="mt-5 pt-4 border-t border-border">
-            <p className="text-xs text-muted-foreground text-center">Demo credentials</p>
+            <p className="text-xs text-muted-foreground text-center">Login credentials</p>
             <div className="mt-2 space-y-1 text-xs text-muted-foreground text-center">
-              <div>Admin: <span className="font-mono">admin / admin123</span></div>
               <div>Staff: <span className="font-mono">cashier1 / staff123</span></div>
               <div>Rider: <span className="font-mono">rider1 / rider123</span></div>
             </div>
