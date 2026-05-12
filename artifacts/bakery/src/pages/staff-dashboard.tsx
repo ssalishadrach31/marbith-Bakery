@@ -10,7 +10,7 @@ import {
   Factory, ShoppingCart, Package, Wallet,
   Clock, RefreshCw, CheckCircle2,
   Truck, ChevronRight, Plus, Users,
-  IceCream, Coffee, Droplets, Milk, ChevronLeft,
+  IceCream, Coffee, Droplets, ChevronLeft,
   CalendarDays, ArrowRight,
 } from "lucide-react";
 
@@ -404,7 +404,6 @@ export default function StaffDashboardPage() {
   const juiceEntries = buildCountEntries("juice");
   const coffeeEntries = buildCountEntries("coffee");
   const teaEntries = buildCountEntries("tea");
-  const milkEntries = buildCountEntries("milk");
 
   // Drinks sold today via POS
   const drinksSoldToday = sales.byProduct.filter((p: any) =>
@@ -423,8 +422,7 @@ export default function StaffDashboardPage() {
   const juiceRevenue = calcRevenue(juiceEntries);
   const coffeeRevenue = calcRevenue(coffeeEntries);
   const teaRevenue = calcRevenue(teaEntries);
-  const milkRevenue = calcRevenue(milkEntries);
-  const grandTotal = sales.totalRevenue + iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue + milkRevenue;
+  const grandTotal = sales.totalRevenue + iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue;
 
   return (
     <div className="space-y-5">
@@ -715,16 +713,6 @@ export default function StaffDashboardPage() {
         isSaving={saveCountMutation.isPending}
       />
 
-      {/* ── MILK COUNT ── */}
-      <CountSection
-        title="Milk Count"
-        icon={<Milk className="h-4 w-4" />}
-        entries={milkEntries}
-        color="blue"
-        onSave={handleSaveCount}
-        isSaving={saveCountMutation.isPending}
-      />
-
       {/* ── COUNTED SALES SUMMARY (always visible) ── */}
       <Card className="border-primary/20">
         <CardContent className="p-5">
@@ -789,24 +777,10 @@ export default function StaffDashboardPage() {
                 )}
               </div>
             </div>
-            <div className="flex justify-between items-center px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-sm">
-              <span className="flex items-center gap-2 text-blue-700">
-                <Milk className="h-4 w-4" /> Milk
-              </span>
-              <div className="text-right">
-                {milkRevenue > 0 ? (
-                  <span className="font-bold text-blue-700">{formatUGX(milkRevenue)}</span>
-                ) : milkEntries.some(e => e.opening !== undefined) ? (
-                  <span className="text-xs text-blue-500 flex items-center gap-1"><ArrowRight className="h-3 w-3" /> Enter closing count</span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">No counts yet</span>
-                )}
-              </div>
-            </div>
-            {(iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0 || teaRevenue > 0 || milkRevenue > 0) && (
+            {(iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0 || teaRevenue > 0) && (
               <div className="flex justify-between items-center px-3 py-2.5 bg-primary/5 border border-primary/20 rounded-lg font-bold mt-1">
                 <span className="text-sm">Total Counted Sales</span>
-                <span className="text-primary">{formatUGX(iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue + milkRevenue)}</span>
+                <span className="text-primary">{formatUGX(iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue)}</span>
               </div>
             )}
           </div>
@@ -923,7 +897,7 @@ export default function StaffDashboardPage() {
           )}
 
           {/* Grand Total (POS + Counted) */}
-          {(sales.totalRevenue > 0 || iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0 || teaRevenue > 0 || milkRevenue > 0) && (
+          {(sales.totalRevenue > 0 || iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0 || teaRevenue > 0) && (
             <div className="mb-4 space-y-1.5">
               {sales.totalRevenue > 0 && (
                 <div className="flex justify-between text-sm px-3 py-2 bg-purple-50 border border-purple-100 rounded-lg">
@@ -953,12 +927,6 @@ export default function StaffDashboardPage() {
                 <div className="flex justify-between text-sm px-3 py-2 bg-green-50 border border-green-100 rounded-lg">
                   <span className="flex items-center gap-2"><Coffee className="h-4 w-4 text-green-500" /> Tea (counted)</span>
                   <span className="font-bold text-green-700">{formatUGX(teaRevenue)}</span>
-                </div>
-              )}
-              {milkRevenue > 0 && (
-                <div className="flex justify-between text-sm px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg">
-                  <span className="flex items-center gap-2"><Milk className="h-4 w-4 text-blue-500" /> Milk (counted)</span>
-                  <span className="font-bold text-blue-700">{formatUGX(milkRevenue)}</span>
                 </div>
               )}
               <div className="flex justify-between items-center px-3 py-3 bg-primary/5 border border-primary/20 rounded-lg font-bold">
