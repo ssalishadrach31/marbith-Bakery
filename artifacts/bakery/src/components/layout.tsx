@@ -167,8 +167,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <NotificationBell />
         </header>
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="p-4 md:p-6 max-w-7xl mx-auto">
+        <main className="flex-1 overflow-y-auto min-h-0">
+          <div className="p-4 md:p-6 pb-10 max-w-7xl mx-auto">
             {children}
           </div>
         </main>
