@@ -17,6 +17,7 @@ import {
   X,
   LogOut,
   ShieldCheck,
+  BarChart2,
 } from "lucide-react";
 
 interface NavItem {
@@ -28,6 +29,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: "/dashboard",       label: "Dashboard",       icon: LayoutDashboard, roles: ["admin"] },
+  { href: "/staff-dashboard", label: "My Dashboard",    icon: BarChart2,       roles: ["staff", "cashier", "baker"] },
   { href: "/production",      label: "Production",      icon: Factory,         roles: ["admin", "staff", "baker"] },
   { href: "/inventory",       label: "Inventory",       icon: Package,         roles: ["admin"] },
   { href: "/pos",             label: "POS / Sales",     icon: ShoppingCart,    roles: ["admin", "staff", "cashier"] },
@@ -45,9 +47,9 @@ const navItems: NavItem[] = [
 export function getRoleHome(role: string): string {
   if (role === "admin") return "/dashboard";
   if (role === "rider") return "/rider-deliveries";
-  if (role === "cashier") return "/pos";
-  if (role === "baker") return "/production";
-  return "/pos"; // staff
+  if (role === "cashier") return "/staff-dashboard";
+  if (role === "baker") return "/staff-dashboard";
+  return "/staff-dashboard"; // staff
 }
 
 export default function Layout({ children }: { children: React.ReactNode }) {

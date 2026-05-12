@@ -1,7 +1,15 @@
 import { Router, type IRouter } from "express";
+import jwt from "jsonwebtoken";
 import { db, productionTable, productsTable, inventoryTable } from "@workspace/db";
 import { eq, sql, gte, and } from "drizzle-orm";
 import { CreateProductionBody, ListProductionQueryParams } from "@workspace/api-zod";
+
+const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
+function getUserName(req: any): string {
+  const h = req.headers.authorization;
+  if (!h?.startsWith("Bearer ")) return "Staff";
+  try { const p = jwt.verify(h.slice(7), JWT_SECRET) as any; return p.name || "Staff"; } catch { return "Staff"; }
+}
 
 const router: IRouter = Router();
 
@@ -49,7 +57,10 @@ router.post("/production", async (req, res): Promise<void> => {
     return;
   }
 
-  const [record] = await db.insert(productionTable).values(parsed.data).returning();
+  const [record] = await db.insert(productionTable).values({
+    ...parsed.data,
+    recordedBy: getUserName(req),
+  }).returning();
 
   // Update inventory
   const [inv] = await db.select().from(inventoryTable).where(eq(inventoryTable.productId, parsed.data.productId));

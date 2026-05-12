@@ -1,7 +1,15 @@
 import { Router, type IRouter } from "express";
+import jwt from "jsonwebtoken";
 import { db, salesTable, saleItemsTable, productsTable, inventoryTable } from "@workspace/db";
 import { eq, sql, and, inArray } from "drizzle-orm";
 import { CreateSaleBody, GetSaleParams, ListSalesQueryParams, GetDailySalesSummaryQueryParams } from "@workspace/api-zod";
+
+const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
+function getUserName(req: any): string {
+  const h = req.headers.authorization;
+  if (!h?.startsWith("Bearer ")) return "Staff";
+  try { const p = jwt.verify(h.slice(7), JWT_SECRET) as any; return p.name || "Staff"; } catch { return "Staff"; }
+}
 
 const router: IRouter = Router();
 
@@ -118,7 +126,7 @@ router.post("/sales", async (req, res): Promise<void> => {
     totalAmount,
     paymentMethod,
     transactionId: transactionId ?? null,
-    soldBy: "staff",
+    soldBy: getUserName(req),
   }).returning();
 
   for (const item of saleItems) {

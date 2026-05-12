@@ -19,6 +19,7 @@ import ProductsPage from "@/pages/products";
 import UsersPage from "@/pages/users";
 import OrderFormPage from "@/pages/order-form";
 import RiderDeliveriesPage from "@/pages/rider-deliveries";
+import StaffDashboardPage from "@/pages/staff-dashboard";
 import Layout from "@/components/layout";
 import NotFound from "@/pages/not-found";
 
@@ -70,6 +71,9 @@ function Router() {
       </Route>
       <Route path="/rider-deliveries">
         {() => <ProtectedRoute component={RiderDeliveriesPage} roles={["rider"]} />}
+      </Route>
+      <Route path="/staff-dashboard">
+        {() => <ProtectedRoute component={StaffDashboardPage} roles={["admin", "staff", "cashier", "baker"]} />}
       </Route>
       <Route path="/">
         {() => {
