@@ -97,7 +97,7 @@ export default function NotificationBell() {
     <div className="relative" ref={panelRef}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="relative flex items-center justify-center w-9 h-9 rounded-lg hover:bg-sidebar-accent text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors"
+        className="relative flex items-center justify-center w-9 h-9 rounded-lg hover:bg-amber-200/70 text-amber-800 hover:text-amber-900 transition-colors"
         title="Notifications"
       >
         <Bell className="h-4 w-4" />

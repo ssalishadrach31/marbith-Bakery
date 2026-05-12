@@ -137,20 +137,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Main area */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {/* Top header — visible on all screen sizes */}
-        <header className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card shrink-0">
+        <header className="flex items-center justify-between px-4 py-2.5 border-b border-amber-200 shrink-0" style={{ background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)" }}>
           {/* Left: hamburger on mobile, page label on desktop */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden text-foreground"
+              className="md:hidden text-amber-800"
             >
               <Menu className="h-5 w-5" />
             </button>
-            <span className="font-bold text-primary md:hidden">Marbith Bakery</span>
-            <span className="hidden md:block text-sm font-medium text-muted-foreground">
+            <span className="font-bold text-amber-900 md:hidden">Marbith Bakery</span>
+            <span className="hidden md:block text-sm font-medium text-amber-700">
               {user?.name && (
                 <span>
-                  Welcome back, <span className="text-foreground font-semibold">{user.name.split(" ")[0]}</span>
+                  Welcome back, <span className="text-amber-900 font-bold">{user.name.split(" ")[0]}</span>
                 </span>
               )}
             </span>
