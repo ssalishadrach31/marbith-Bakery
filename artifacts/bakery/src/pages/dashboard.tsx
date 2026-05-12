@@ -1,12 +1,23 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGetDashboardSummary, useGetLowStockItems, useGetRecentActivity, getGetDashboardSummaryQueryKey, getGetLowStockItemsQueryKey, getGetRecentActivityQueryKey, useListOrders, getListOrdersQueryKey } from "@workspace/api-client-react";
-import { formatUGX, formatDateTime } from "@/lib/auth";
+import { getToken, formatUGX, formatDateTime } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Factory, Package, ShoppingCart, Truck, Users, AlertTriangle, TrendingUp, DollarSign, ArrowRight, Phone, MapPin, CreditCard } from "lucide-react";
+import { Factory, Package, ShoppingCart, Truck, Users, AlertTriangle, TrendingUp, DollarSign, ArrowRight, Phone, MapPin, CreditCard, CheckCircle2, Clock, MessageSquare, Bell, X } from "lucide-react";
+
+async function apiFetch(path: string, options?: RequestInit) {
+  const token = getToken();
+  const res = await fetch(`/api${path}`, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options?.headers },
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error ?? "Request failed"); }
+  return res.json();
+}
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-700 border-yellow-200",
@@ -44,10 +55,31 @@ function StatCard({ title, value, subtitle, icon: Icon, variant = "default", onC
 
 export default function DashboardPage() {
   const [, navigate] = useLocation();
+  const qc = useQueryClient();
   const { data: summary, isLoading } = useGetDashboardSummary({ query: { queryKey: getGetDashboardSummaryQueryKey() } });
   const { data: lowStock } = useGetLowStockItems({ query: { queryKey: getGetLowStockItemsQueryKey() } });
   const { data: activity } = useGetRecentActivity({ query: { queryKey: getGetRecentActivityQueryKey() } });
   const { data: allOrders } = useListOrders(undefined, { query: { queryKey: getListOrdersQueryKey() } });
+  const { data: shiftClosings = [] } = useQuery<any[]>({
+    queryKey: ["shift-closings"],
+    queryFn: () => apiFetch("/shift-closings"),
+    refetchInterval: 30_000,
+    staleTime: 20_000,
+  });
+  const pendingCloses = (shiftClosings as any[]).filter((c: any) => c.status === "pending");
+
+  const { data: recentMemos = [] } = useQuery<any[]>({
+    queryKey: ["memos-dashboard"],
+    queryFn: () => apiFetch("/memos"),
+    staleTime: 60_000,
+  });
+  const latestMemo = recentMemos[0] ?? null;
+
+  const approveMutation = useMutation({
+    mutationFn: ({ id, action }: { id: number; action: "approve" | "reject" }) =>
+      apiFetch(`/shift-closings/${id}/approve`, { method: "PATCH", body: JSON.stringify({ action }) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["shift-closings"] }); qc.invalidateQueries({ queryKey: ["notifications"] }); },
+  });
 
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
@@ -93,6 +125,65 @@ export default function DashboardPage() {
         <StatCard title="Low Stock Items" value={summary?.lowStockCount ?? 0} subtitle="Need restocking" icon={AlertTriangle} variant={summary?.lowStockCount ? "warning" : "default"} onClick={() => navigate("/inventory")} />
         <StatCard title="Employees" value={summary?.totalEmployees ?? 0} subtitle={`${summary?.activeRiders ?? 0} riders active`} icon={Users} onClick={() => navigate("/employees")} />
       </div>
+
+      {/* Pending shift-close requests — requires admin approval */}
+      {pendingCloses.length > 0 && (
+        <Card className="border-orange-300 bg-orange-50">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-orange-600 shrink-0" />
+              <span className="font-semibold text-sm text-orange-900">
+                {pendingCloses.length} Pending Day-Close Request{pendingCloses.length > 1 ? "s" : ""}
+              </span>
+              <span className="text-xs text-orange-700 ml-auto">Approve to allow staff to start a new day</span>
+            </div>
+            {pendingCloses.map((c: any) => (
+              <div key={c.id} className="flex items-center gap-3 bg-white border border-orange-200 rounded-lg px-3 py-2.5">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">{c.closedBy}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {c.shiftDate} · submitted {new Date(c.closedAt).toLocaleTimeString("en-UG", { hour: "2-digit", minute: "2-digit" })}
+                    {c.notes && ` · "${c.notes}"`}
+                  </p>
+                </div>
+                <div className="flex gap-1.5 shrink-0">
+                  <Button
+                    size="sm"
+                    onClick={() => approveMutation.mutate({ id: c.id, action: "approve" })}
+                    disabled={approveMutation.isPending}
+                    className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => approveMutation.mutate({ id: c.id, action: "reject" })}
+                    disabled={approveMutation.isPending}
+                    className="h-7 text-xs border-red-200 text-red-600 hover:bg-red-50"
+                  >
+                    <X className="h-3.5 w-3.5 mr-1" /> Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Latest memo banner */}
+      {latestMemo && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardContent className="p-3.5 flex items-start gap-3">
+            <Bell className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-blue-900 truncate">{latestMemo.title}</p>
+              <p className="text-xs text-blue-700 line-clamp-1 mt-0.5">{latestMemo.message}</p>
+            </div>
+            <MessageSquare className="h-3.5 w-3.5 text-blue-400 shrink-0 mt-0.5" />
+          </CardContent>
+        </Card>
+      )}
 
       {summary?.outstandingWholesale ? (
         <Card className="border-amber-200 bg-amber-50 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/wholesale")}>

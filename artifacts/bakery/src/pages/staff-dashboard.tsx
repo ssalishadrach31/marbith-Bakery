@@ -12,7 +12,7 @@ import {
   Truck, ChevronRight, Plus, Users,
   IceCream, Coffee, Droplets, ChevronLeft,
   CalendarDays, ArrowRight, ChevronDown,
-  History, MoonStar, X, AlertCircle, Banknote,
+  History, MoonStar, X, AlertCircle, Banknote, Sunrise,
 } from "lucide-react";
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -376,6 +376,32 @@ export default function StaffDashboardPage() {
   // ── Shift Closing ─────────────────────────────────────────────────────────
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showNewDayDialog, setShowNewDayDialog] = useState(false);
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split("T")[0];
+
+  const { data: yesterdayClosingCounts } = useQuery<any[]>({
+    queryKey: ["daily-counts", yesterdayStr],
+    queryFn: () => apiFetch(`/daily-counts?date=${yesterdayStr}`),
+    enabled: showNewDayDialog,
+    staleTime: 60_000,
+  });
+
+  const carryForwardMutation = useMutation({
+    mutationFn: () => apiFetch("/daily-counts/carry-forward", {
+      method: "POST",
+      body: JSON.stringify({ fromDate: yesterdayStr, toDate: todayStr }),
+    }),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ["daily-counts", todayStr] });
+      qc.invalidateQueries({ queryKey: ["staff-dashboard"] });
+      setShowNewDayDialog(false);
+      toast({ title: "New Day Started!", description: data.message ?? "Opening stock carried forward from yesterday." });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
 
   const { data: shiftClosings } = useQuery<any[]>({
     queryKey: ["shift-closings"],
@@ -384,9 +410,12 @@ export default function StaffDashboardPage() {
   });
 
   const todayClosing = (shiftClosings ?? []).find((c: any) => c.shiftDate === todayStr);
+  const yesterdayClosing = (shiftClosings ?? []).find((c: any) => c.shiftDate === yesterdayStr && c.status === "approved");
   const isAdmin = role === "admin";
   const isTodayClosed = todayClosing?.status === "approved";
   const isPendingClose = todayClosing?.status === "pending";
+  const todayHasOpenings = (dailyCounts ?? []).some((c: any) => c.countType === "opening");
+  const showNewDayPrompt = !!yesterdayClosing && !todayHasOpenings && !isTodayClosed && !isPendingClose;
 
   const closeDayMutation = useMutation({
     mutationFn: () => apiFetch("/shift-closings", { method: "POST", body: JSON.stringify({ shiftDate: todayStr }) }),
@@ -599,6 +628,89 @@ export default function StaffDashboardPage() {
           </div>
           <button onClick={() => setShowHistory(true)} className={`text-xs underline shrink-0 ${isTodayClosed ? "text-green-700" : "text-amber-700"}`}>View History</button>
         </div>
+      )}
+
+      {/* Start New Day — prompt when yesterday is approved & today has no opening counts */}
+      {showNewDayPrompt && !showNewDayDialog && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-blue-300 bg-blue-50">
+          <Sunrise className="h-5 w-5 text-blue-600 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="font-semibold text-sm text-blue-900">Yesterday's shift was approved.</span>
+            <span className="text-xs text-blue-700 ml-2">Carry forward yesterday's closing stock as today's opening counts.</span>
+          </div>
+          <Button size="sm" onClick={() => setShowNewDayDialog(true)} className="bg-blue-600 hover:bg-blue-700 text-white shrink-0">
+            <Sunrise className="h-4 w-4 mr-1.5" /> Start New Day
+          </Button>
+        </div>
+      )}
+
+      {/* Start New Day dialog — shows yesterday's closing stock */}
+      {showNewDayDialog && (
+        <Card className="border-2 border-blue-200 bg-blue-50/30">
+          <CardContent className="p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sunrise className="h-5 w-5 text-blue-600" />
+                <h3 className="font-semibold text-sm">Start New Day — Carry Forward Stock</h3>
+              </div>
+              <button onClick={() => setShowNewDayDialog(false)} className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Yesterday ({yesterdayStr}) was closed and approved. Click below to set yesterday's closing stock as today's opening counts automatically.
+            </p>
+
+            {/* Yesterday's closing counts table */}
+            {yesterdayClosingCounts === undefined ? (
+              <div className="h-14 bg-muted rounded-lg animate-pulse" />
+            ) : (() => {
+              const closing = yesterdayClosingCounts.filter((c: any) => c.countType === "closing");
+              if (closing.length === 0) return (
+                <p className="text-sm text-muted-foreground text-center py-3">No closing counts recorded for yesterday.</p>
+              );
+              return (
+                <div className="overflow-x-auto rounded-lg border border-blue-200">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-blue-100/60 border-b border-blue-200">
+                        <th className="text-left py-2 px-3 font-semibold text-blue-900">Product</th>
+                        <th className="text-center py-2 px-3 font-semibold text-blue-700">Yesterday Closing</th>
+                        <th className="text-center py-2 px-3 font-semibold text-green-700">→ Today's Opening</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-blue-100">
+                      {closing.map((c: any) => (
+                        <tr key={c.id}>
+                          <td className="py-2 px-3 font-medium">{c.productName}</td>
+                          <td className="py-2 px-3 text-center text-blue-700 font-bold">{c.quantity}</td>
+                          <td className="py-2 px-3 text-center text-green-700 font-bold">{c.quantity}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                onClick={() => carryForwardMutation.mutate()}
+                disabled={carryForwardMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Sunrise className="h-4 w-4 mr-1.5" />
+                {carryForwardMutation.isPending ? "Starting…" : "Set as Today's Opening Stock"}
+              </Button>
+              <Button variant="outline" onClick={() => setShowNewDayDialog(false)}>
+                Enter Manually
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              You can still adjust individual counts manually after carrying forward.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       {/* Pending expenses warning — personal liability notice */}

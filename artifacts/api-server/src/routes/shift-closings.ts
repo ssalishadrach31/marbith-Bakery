@@ -4,7 +4,7 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
-import { notifyByRoles } from "../lib/notify";
+import { notifyByRoles, notifyAllActiveUsers, notifyUsers } from "../lib/notify";
 
 const router: IRouter = Router();
 const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
@@ -135,7 +135,24 @@ router.patch("/shift-closings/:id/approve", async (req, res): Promise<void> => {
       RETURNING id, closed_by, shift_date::text AS shift_date, closed_at, notes, status, approved_by, approved_at
     `);
     if (!result.rows.length) { res.status(404).json({ error: "Not found" }); return; }
-    res.json(row(result.rows[0] as any));
+    const approved = result.rows[0] as any;
+    const shiftDate = approved.shift_date;
+    // Notify the staff member who requested the close
+    const staffRows = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.name, approved.closed_by)).catch(() => []);
+    if (staffRows.length > 0) {
+      await notifyUsers([staffRows[0].id], {
+        type: "system",
+        title: "Shift Approved!",
+        message: `Your close-day request for ${shiftDate} was approved by ${user.name}. Head to the Shift Dashboard to start a new day.`,
+      }).catch(() => {});
+    }
+    // Notify everyone to prepare for a new day
+    await notifyAllActiveUsers({
+      type: "system",
+      title: "New Day Starting",
+      message: `${user.name} approved the shift close for ${shiftDate}. Open the Shift Dashboard to carry forward opening stock.`,
+    }).catch(() => {});
+    res.json(row(approved));
   } else {
     // Reject → delete the pending record so staff can re-submit
     await db.execute(sql`DELETE FROM shift_closings WHERE id = ${id} AND status = 'pending'`);

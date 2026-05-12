@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getToken } from "@/lib/auth";
-import { Bell, ShoppingCart, Factory, Wallet, FileText, Package, CheckCheck, X } from "lucide-react";
+import { Bell, ShoppingCart, Factory, Wallet, FileText, Package, CheckCheck, X, MessageSquare, Sunrise } from "lucide-react";
 
 async function apiFetch(path: string, options?: RequestInit) {
   const token = getToken();
@@ -19,7 +19,7 @@ async function apiFetch(path: string, options?: RequestInit) {
 
 type Notification = {
   id: number;
-  type: "sale" | "production" | "salary" | "expense" | "order";
+  type: "sale" | "production" | "salary" | "expense" | "order" | "system" | "attendance";
   title: string;
   message: string;
   isRead: boolean;
@@ -34,6 +34,9 @@ function typeIcon(type: Notification["type"]) {
     case "salary":     return <Wallet className="h-3.5 w-3.5 text-green-500 shrink-0" />;
     case "expense":    return <FileText className="h-3.5 w-3.5 text-red-500 shrink-0" />;
     case "order":      return <Package className="h-3.5 w-3.5 text-blue-500 shrink-0" />;
+    case "system":     return <Sunrise className="h-3.5 w-3.5 text-amber-500 shrink-0" />;
+    case "attendance": return <MessageSquare className="h-3.5 w-3.5 text-teal-500 shrink-0" />;
+    default:           return <Bell className="h-3.5 w-3.5 text-muted-foreground shrink-0" />;
   }
 }
 
@@ -44,6 +47,9 @@ function typeBg(type: Notification["type"]) {
     case "salary":     return "bg-green-50 border-green-100";
     case "expense":    return "bg-red-50 border-red-100";
     case "order":      return "bg-blue-50 border-blue-100";
+    case "system":     return "bg-amber-50 border-amber-100";
+    case "attendance": return "bg-teal-50 border-teal-100";
+    default:           return "bg-muted border-border";
   }
 }
 

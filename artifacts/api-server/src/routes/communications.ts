@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { notifyAllActiveUsers, notifyByRoles } from "../lib/notify";
 
 const router: IRouter = Router();
 const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
@@ -83,6 +84,12 @@ router.post("/memos", async (req, res): Promise<void> => {
     VALUES (${title.trim()}, ${message.trim()}, ${user.name}, ${priority || "normal"}, ${expiresAt ? new Date(expiresAt).toISOString() : null})
     RETURNING id, title, message, posted_by, posted_at, priority, is_pinned, expires_at
   `);
+  const preview = message.trim().slice(0, 120) + (message.trim().length > 120 ? "…" : "");
+  notifyAllActiveUsers({
+    type: "system",
+    title: `📢 Notice: ${title.trim()}`,
+    message: `${user.name}: ${preview}`,
+  }).catch(() => {});
   res.status(201).json(memoRow(result.rows[0] as any));
 });
 
@@ -134,6 +141,11 @@ router.post("/feedback", async (req, res): Promise<void> => {
     RETURNING id, subject, message, submitted_by_name, submitted_by_role, submitted_at, is_anonymous, status,
               admin_reply, replied_by, replied_at
   `);
+  notifyByRoles(["admin"], {
+    type: "system",
+    title: "New Staff Feedback",
+    message: `${isAnonymous ? "Anonymous" : user.name} submitted feedback: "${subject.trim()}"`,
+  }).catch(() => {});
   res.status(201).json(feedRow(result.rows[0] as any, false));
 });
 

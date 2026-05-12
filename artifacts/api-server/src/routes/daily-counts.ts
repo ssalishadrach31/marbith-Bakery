@@ -94,4 +94,45 @@ router.post("/daily-counts", async (req, res): Promise<void> => {
   res.status(201).json({ ...record, productName: product?.name ?? "Unknown", price: product?.price ?? 0 });
 });
 
+// POST /api/daily-counts/carry-forward — copy yesterday's closing counts as today's opening
+router.post("/daily-counts/carry-forward", async (req, res): Promise<void> => {
+  const user = getUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { fromDate, toDate } = req.body;
+  if (!fromDate || !toDate) { res.status(400).json({ error: "fromDate and toDate are required" }); return; }
+
+  const closingRows = await db
+    .select({ productId: dailyCountsTable.productId, quantity: dailyCountsTable.quantity })
+    .from(dailyCountsTable)
+    .where(and(eq(dailyCountsTable.countDate, fromDate), eq(dailyCountsTable.countType, "closing")));
+
+  if (closingRows.length === 0) {
+    res.json({ carried: 0, message: "No closing counts for that date" });
+    return;
+  }
+
+  let carried = 0;
+  for (const c of closingRows) {
+    const existing = await db
+      .select()
+      .from(dailyCountsTable)
+      .where(and(eq(dailyCountsTable.productId, c.productId), eq(dailyCountsTable.countType, "opening"), eq(dailyCountsTable.countDate, toDate)));
+
+    if (existing.length > 0) {
+      await db.update(dailyCountsTable)
+        .set({ quantity: c.quantity, recordedBy: user.name, recordedAt: new Date() })
+        .where(eq(dailyCountsTable.id, existing[0].id));
+    } else {
+      await db.insert(dailyCountsTable).values({
+        productId: c.productId, countType: "opening", quantity: c.quantity,
+        countDate: toDate, recordedBy: user.name,
+      });
+    }
+    carried++;
+  }
+
+  res.json({ carried, message: `${carried} product${carried !== 1 ? "s" : ""} carried forward as today's opening stock` });
+});
+
 export default router;
