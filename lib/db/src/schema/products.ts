@@ -7,7 +7,7 @@ export const productsTable = pgTable("products", {
   name: text("name").notNull(),
   price: real("price").notNull(),
   unit: text("unit").notNull().default("piece"),
-  category: text("category").notNull().default("baked_goods"),
+  category: text("category", { enum: ["baked_goods", "coffee", "drink", "snacks", "juice", "ice_cream", "milk", "tea"] }).notNull().default("baked_goods"),
   lowStockThreshold: integer("low_stock_threshold").notNull().default(10),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

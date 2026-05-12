@@ -103,7 +103,7 @@ async function seed() {
     ];
 
     for (const p of productsToSeed) {
-      const [product] = await db.insert(productsTable).values({ ...p, isActive: true }).returning();
+      const [product] = await db.insert(productsTable).values({ ...p, isActive: true } as any).returning();
       await db.insert(inventoryTable).values({ productId: product.id, currentStock: 50 });
     }
     console.log("Products seeded:", productsToSeed.length);

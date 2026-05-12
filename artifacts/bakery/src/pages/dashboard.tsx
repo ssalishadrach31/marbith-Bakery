@@ -76,9 +76,10 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard title="Today Revenue" value={formatUGX(summary?.todayTotalRevenue ?? 0)} subtitle="Shop + Online" icon={TrendingUp} variant="success" />
-        <StatCard title="Shop Sales" value={formatUGX(summary?.todayShopSales ?? 0)} icon={ShoppingCart} onClick={() => navigate("/pos")} />
-        <StatCard title="Online Sales" value={formatUGX(summary?.todayOnlineSales ?? 0)} icon={DollarSign} onClick={() => navigate("/orders")} />
+        <StatCard title="Today Revenue" value={formatUGX(summary?.todayTotalRevenue ?? 0)} subtitle="POS + Online + Counted" icon={TrendingUp} variant="success" />
+        <StatCard title="Shop Sales" value={formatUGX(summary?.todayShopSales ?? 0)} subtitle="POS sales" icon={ShoppingCart} onClick={() => navigate("/pos")} />
+        <StatCard title="Online Sales" value={formatUGX(summary?.todayOnlineSales ?? 0)} subtitle="Online orders" icon={DollarSign} onClick={() => navigate("/orders")} />
+        <StatCard title="Counted Sales" value={formatUGX((summary as any)?.todayCountSales ?? 0)} subtitle="Ice cream, juice, coffee, tea, milk" icon={CreditCard} />
         <StatCard
           title="Pending Orders"
           value={summary?.pendingOrders ?? 0}

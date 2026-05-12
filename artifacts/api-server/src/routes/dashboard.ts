@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, productionTable, inventoryTable, productsTable, salesTable, ordersTable, deliveriesTable, employeesTable, wholesaleSuppliesTable, saleItemsTable, orderItemsTable } from "@workspace/db";
+import { db, productionTable, inventoryTable, productsTable, salesTable, ordersTable, deliveriesTable, employeesTable, wholesaleSuppliesTable, saleItemsTable, orderItemsTable, dailyCountsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -20,13 +20,28 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
   const [totalEmpRow] = await db.select({ count: sql<number>`COUNT(*)::int` }).from(employeesTable).where(eq(employeesTable.isActive, true));
   const [wholesaleRow] = await db.select({ total: sql<number>`COALESCE(SUM(${wholesaleSuppliesTable.totalAmount} - ${wholesaleSuppliesTable.amountPaid}), 0)` }).from(wholesaleSuppliesTable).where(sql`${wholesaleSuppliesTable.paymentStatus} != 'paid'`);
 
+  // Daily count revenue: (opening - closing) * price for all counted items with both counts entered today
+  const countRevenueResult = await db.execute(sql`
+    SELECT COALESCE(SUM(GREATEST(0, dc_open.quantity - dc_close.quantity) * p.price), 0)::numeric AS total
+    FROM daily_counts dc_open
+    JOIN products p ON p.id = dc_open.product_id
+    JOIN daily_counts dc_close
+      ON dc_close.product_id = dc_open.product_id
+      AND dc_close.count_type = 'closing'
+      AND dc_close.count_date = ${today}
+    WHERE dc_open.count_type = 'opening'
+      AND dc_open.count_date = ${today}
+  `);
+  const todayCountSales = Number((countRevenueResult.rows[0] as any)?.total ?? 0);
+
   res.json({
     todayProduction: productionRow?.total ?? 0,
     totalStockItems,
     lowStockCount,
     todayShopSales: salesRow?.total ?? 0,
     todayOnlineSales: ordersRow?.total ?? 0,
-    todayTotalRevenue: (salesRow?.total ?? 0) + (ordersRow?.total ?? 0),
+    todayCountSales,
+    todayTotalRevenue: (salesRow?.total ?? 0) + (ordersRow?.total ?? 0) + todayCountSales,
     pendingOrders: pendingRow?.count ?? 0,
     activeRiders: activeRidersRow?.count ?? 0,
     totalEmployees: totalEmpRow?.count ?? 0,

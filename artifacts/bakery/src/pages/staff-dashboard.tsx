@@ -403,6 +403,7 @@ export default function StaffDashboardPage() {
   const iceCreamEntries = buildCountEntries("ice_cream");
   const juiceEntries = buildCountEntries("juice");
   const coffeeEntries = buildCountEntries("coffee");
+  const teaEntries = buildCountEntries("tea");
   const milkEntries = buildCountEntries("milk");
 
   // Drinks sold today via POS
@@ -421,8 +422,9 @@ export default function StaffDashboardPage() {
   const iceCreamRevenue = calcRevenue(iceCreamEntries);
   const juiceRevenue = calcRevenue(juiceEntries);
   const coffeeRevenue = calcRevenue(coffeeEntries);
+  const teaRevenue = calcRevenue(teaEntries);
   const milkRevenue = calcRevenue(milkEntries);
-  const grandTotal = sales.totalRevenue + iceCreamRevenue + juiceRevenue + coffeeRevenue + milkRevenue;
+  const grandTotal = sales.totalRevenue + iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue + milkRevenue;
 
   return (
     <div className="space-y-5">
@@ -648,7 +650,7 @@ export default function StaffDashboardPage() {
       <div className="flex items-center gap-3 pt-1">
         <div className="flex items-center gap-1.5">
           <CalendarDays className="h-4 w-4 text-primary" />
-          <span className="font-semibold text-sm">Ice Cream, Juice & Coffee Counts</span>
+          <span className="font-semibold text-sm">Daily Counted Stock</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={prevCountDay} className="p-1.5 rounded-lg border border-border hover:bg-muted transition-colors">
@@ -693,12 +695,22 @@ export default function StaffDashboardPage() {
         isSaving={saveCountMutation.isPending}
       />
 
-      {/* ── COFFEE / TEA COUNT ── */}
+      {/* ── COFFEE COUNT ── */}
       <CountSection
-        title="Coffee & Tea Count"
+        title="Coffee Count"
         icon={<Coffee className="h-4 w-4" />}
         entries={coffeeEntries}
         color="amber"
+        onSave={handleSaveCount}
+        isSaving={saveCountMutation.isPending}
+      />
+
+      {/* ── TEA COUNT ── */}
+      <CountSection
+        title="Tea Count"
+        icon={<Coffee className="h-4 w-4" />}
+        entries={teaEntries}
+        color="green"
         onSave={handleSaveCount}
         isSaving={saveCountMutation.isPending}
       />
@@ -751,12 +763,26 @@ export default function StaffDashboardPage() {
             </div>
             <div className="flex justify-between items-center px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg text-sm">
               <span className="flex items-center gap-2 text-amber-700">
-                <Coffee className="h-4 w-4" /> Coffee & Tea
+                <Coffee className="h-4 w-4" /> Coffee
               </span>
               <div className="text-right">
                 {coffeeRevenue > 0 ? (
                   <span className="font-bold text-amber-700">{formatUGX(coffeeRevenue)}</span>
                 ) : coffeeEntries.some(e => e.opening !== undefined) ? (
+                  <span className="text-xs text-blue-500 flex items-center gap-1"><ArrowRight className="h-3 w-3" /> Enter closing count</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">No counts yet</span>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-between items-center px-3 py-2 bg-green-50 border border-green-100 rounded-lg text-sm">
+              <span className="flex items-center gap-2 text-green-700">
+                <Coffee className="h-4 w-4" /> Tea
+              </span>
+              <div className="text-right">
+                {teaRevenue > 0 ? (
+                  <span className="font-bold text-green-700">{formatUGX(teaRevenue)}</span>
+                ) : teaEntries.some(e => e.opening !== undefined) ? (
                   <span className="text-xs text-blue-500 flex items-center gap-1"><ArrowRight className="h-3 w-3" /> Enter closing count</span>
                 ) : (
                   <span className="text-xs text-muted-foreground">No counts yet</span>
@@ -777,10 +803,10 @@ export default function StaffDashboardPage() {
                 )}
               </div>
             </div>
-            {(iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0 || milkRevenue > 0) && (
+            {(iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0 || teaRevenue > 0 || milkRevenue > 0) && (
               <div className="flex justify-between items-center px-3 py-2.5 bg-primary/5 border border-primary/20 rounded-lg font-bold mt-1">
                 <span className="text-sm">Total Counted Sales</span>
-                <span className="text-primary">{formatUGX(iceCreamRevenue + juiceRevenue + coffeeRevenue + milkRevenue)}</span>
+                <span className="text-primary">{formatUGX(iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue + milkRevenue)}</span>
               </div>
             )}
           </div>
@@ -897,7 +923,7 @@ export default function StaffDashboardPage() {
           )}
 
           {/* Grand Total (POS + Counted) */}
-          {(sales.totalRevenue > 0 || iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0) && (
+          {(sales.totalRevenue > 0 || iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0 || teaRevenue > 0 || milkRevenue > 0) && (
             <div className="mb-4 space-y-1.5">
               {sales.totalRevenue > 0 && (
                 <div className="flex justify-between text-sm px-3 py-2 bg-purple-50 border border-purple-100 rounded-lg">
@@ -905,10 +931,34 @@ export default function StaffDashboardPage() {
                   <span className="font-bold text-purple-700">{formatUGX(sales.totalRevenue)}</span>
                 </div>
               )}
-              {(iceCreamRevenue + juiceRevenue + coffeeRevenue) > 0 && (
+              {iceCreamRevenue > 0 && (
+                <div className="flex justify-between text-sm px-3 py-2 bg-pink-50 border border-pink-100 rounded-lg">
+                  <span className="flex items-center gap-2"><IceCream className="h-4 w-4 text-pink-500" /> Ice Cream (counted)</span>
+                  <span className="font-bold text-pink-700">{formatUGX(iceCreamRevenue)}</span>
+                </div>
+              )}
+              {juiceRevenue > 0 && (
+                <div className="flex justify-between text-sm px-3 py-2 bg-orange-50 border border-orange-100 rounded-lg">
+                  <span className="flex items-center gap-2"><Droplets className="h-4 w-4 text-orange-500" /> Juice (counted)</span>
+                  <span className="font-bold text-orange-700">{formatUGX(juiceRevenue)}</span>
+                </div>
+              )}
+              {coffeeRevenue > 0 && (
+                <div className="flex justify-between text-sm px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg">
+                  <span className="flex items-center gap-2"><Coffee className="h-4 w-4 text-amber-500" /> Coffee (counted)</span>
+                  <span className="font-bold text-amber-700">{formatUGX(coffeeRevenue)}</span>
+                </div>
+              )}
+              {teaRevenue > 0 && (
                 <div className="flex justify-between text-sm px-3 py-2 bg-green-50 border border-green-100 rounded-lg">
-                  <span className="flex items-center gap-2"><IceCream className="h-4 w-4 text-green-500" /> Ice Cream + Juice + Coffee (counted)</span>
-                  <span className="font-bold text-green-700">{formatUGX(iceCreamRevenue + juiceRevenue + coffeeRevenue)}</span>
+                  <span className="flex items-center gap-2"><Coffee className="h-4 w-4 text-green-500" /> Tea (counted)</span>
+                  <span className="font-bold text-green-700">{formatUGX(teaRevenue)}</span>
+                </div>
+              )}
+              {milkRevenue > 0 && (
+                <div className="flex justify-between text-sm px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg">
+                  <span className="flex items-center gap-2"><Milk className="h-4 w-4 text-blue-500" /> Milk (counted)</span>
+                  <span className="font-bold text-blue-700">{formatUGX(milkRevenue)}</span>
                 </div>
               )}
               <div className="flex justify-between items-center px-3 py-3 bg-primary/5 border border-primary/20 rounded-lg font-bold">
