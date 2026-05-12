@@ -80,6 +80,9 @@ export default function LoginPage() {
         <p className="text-center text-xs text-sidebar-foreground/40 mt-4">
           <a href="/order" className="underline underline-offset-2 hover:text-sidebar-foreground/60">Place an online order</a>
         </p>
+        <p className="text-center text-xs text-sidebar-foreground/25 mt-3">
+          Developed by <span className="text-sidebar-foreground/40 font-medium">Shadrach Ssali</span>
+        </p>
       </div>
     </div>
   );
