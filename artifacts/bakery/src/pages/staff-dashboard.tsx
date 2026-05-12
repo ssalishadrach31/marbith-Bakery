@@ -11,7 +11,7 @@ import {
   Clock, RefreshCw, CheckCircle2,
   Truck, ChevronRight, Plus, Users,
   IceCream, Coffee, Droplets, ChevronLeft,
-  CalendarDays, ArrowRight,
+  CalendarDays, ArrowRight, ChevronDown,
 } from "lucide-react";
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -28,12 +28,15 @@ async function apiFetch(path: string, options?: RequestInit) {
   return res.status === 204 ? null : res.json();
 }
 
-function StepBadge({ n, label, done }: { n: number; label: string; done: boolean }) {
+function StepBadge({ n, label, done, onClick }: { n: number; label: string; done: boolean; onClick?: () => void }) {
   return (
-    <div className={`flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-full border ${done ? "bg-green-100 text-green-700 border-green-200" : "bg-muted text-muted-foreground border-border"}`}>
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 text-sm font-medium px-3 py-1.5 rounded-full border transition-colors ${done ? "bg-green-100 text-green-700 border-green-200 hover:bg-green-200" : "bg-muted text-muted-foreground border-border hover:bg-muted/70"}`}
+    >
       {done ? <CheckCircle2 className="h-4 w-4" /> : <span className="w-4 h-4 flex items-center justify-center rounded-full bg-muted-foreground/20 text-xs font-bold">{n}</span>}
       {label}
-    </div>
+    </button>
   );
 }
 
@@ -64,6 +67,7 @@ function CountSection({
   isSaving: boolean;
 }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   function saveEntry(productId: number, countType: "opening" | "closing", key: string) {
     const q = parseInt(drafts[key] ?? "");
@@ -100,7 +104,7 @@ function CountSection({
   return (
     <Card>
       <CardContent className="p-5">
-        <div className="flex items-center gap-2 mb-2">
+        <button className="w-full flex items-center gap-2 mb-2 text-left" onClick={() => setIsCollapsed((c) => !c)}>
           <span className={`text-${color}-600`}>{icon}</span>
           <h2 className="font-semibold">{title}</h2>
           <div className="ml-auto flex gap-3 text-sm items-center">
@@ -111,7 +115,7 @@ function CountSection({
               </>
             ) : hasOpening && !hasClosing ? (
               <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 flex items-center gap-1">
-                <Clock className="h-3 w-3" /> Opening set — enter closing to see sales
+                <Clock className="h-3 w-3" /> Opening set — enter closing
               </span>
             ) : !hasOpening ? (
               <span className="text-xs text-muted-foreground">Enter opening count to begin</span>
@@ -119,8 +123,10 @@ function CountSection({
               <span className="text-xs text-yellow-600 bg-yellow-50 border border-yellow-200 rounded-full px-2 py-0.5">Partial counts</span>
             )}
           </div>
-        </div>
+          <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+        </button>
 
+        {!isCollapsed && <>
         {/* Progress bar */}
         {entries.length > 0 && (
           <div className="flex gap-1 mb-4">
@@ -273,6 +279,7 @@ function CountSection({
           <span className="flex items-center gap-1"><span className={`w-3 h-1.5 rounded-full bg-${color}-400 inline-block`} /> Both set (sold calculated)</span>
           <span className="ml-auto">Click ✎ to edit an existing count.</span>
         </div>
+        </>}
       </CardContent>
     </Card>
   );
@@ -329,6 +336,14 @@ export default function StaffDashboardPage() {
     refetchOnMount: "always",
     staleTime: 0,
   });
+
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  function toggleSection(id: string) { setCollapsed((c) => ({ ...c, [id]: !c[id] })); }
+  function scrollTo(id: string) {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    else toggleSection(id); // fallback: expand if somehow not found
+  }
 
   const [showReceiptForm, setShowReceiptForm] = useState(false);
   const [receiptForm, setReceiptForm] = useState({ productId: "", quantityReceived: "", notes: "" });
@@ -475,28 +490,29 @@ export default function StaffDashboardPage() {
         </div>
       </div>
 
-      {/* Workflow steps */}
+      {/* Workflow steps — tap any badge to jump to that section */}
       <div className="flex items-center gap-2 flex-wrap">
-        <StepBadge n={1} label="Production" done={hasProduction} />
+        <StepBadge n={1} label="Production" done={hasProduction} onClick={() => scrollTo("section-production")} />
         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-        <StepBadge n={2} label="Shop Receipt" done={hasReceipts} />
+        <StepBadge n={2} label="Shop Receipt" done={hasReceipts} onClick={() => scrollTo("section-receipt")} />
         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-        <StepBadge n={3} label="Sales" done={hasSales} />
+        <StepBadge n={3} label="Sales" done={hasSales} onClick={() => scrollTo("section-sales")} />
         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-        <StepBadge n={4} label="End of Day" done={false} />
+        <StepBadge n={4} label="End of Day" done={false} onClick={() => scrollTo("section-endofday")} />
       </div>
 
       {/* ── STEP 1: PRODUCTION ── */}
       {showProduction && (
-        <Card>
+        <Card id="section-production">
           <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-3">
+            <button className="w-full flex items-center gap-2 mb-3 text-left" onClick={() => toggleSection("production")}>
               <div className="w-6 h-6 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-bold">1</div>
               <Factory className="h-4 w-4 text-orange-600" />
               <h2 className="font-semibold">Produced at Bakery Today</h2>
               <span className="ml-auto text-xs text-muted-foreground">{production.totalUnits} units total</span>
-            </div>
-            {production.byProduct.length === 0 ? (
+              <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${collapsed["production"] ? "-rotate-90" : ""}`} />
+            </button>
+            {!collapsed["production"] && (production.byProduct.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">Nothing recorded in production yet today</p>
             ) : (
               <div className="overflow-x-auto">
@@ -517,8 +533,8 @@ export default function StaffDashboardPage() {
                   </tbody>
                 </table>
               </div>
-            )}
-            {production.entries.length > 0 && (
+            ))}
+            {!collapsed["production"] && production.entries.length > 0 && (
               <details className="mt-3">
                 <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">View activity log</summary>
                 <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto">
@@ -537,85 +553,88 @@ export default function StaffDashboardPage() {
 
       {/* ── STEP 2: SHOP RECEIPT ── */}
       {showSales && (
-        <Card className={!hasProduction ? "opacity-70" : ""}>
+        <Card id="section-receipt" className={!hasProduction ? "opacity-70" : ""}>
           <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-3">
+            <button className="w-full flex items-center gap-2 mb-3 text-left" onClick={() => toggleSection("receipt")}>
               <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">2</div>
               <Truck className="h-4 w-4 text-blue-600" />
               <h2 className="font-semibold">Goods Received at Shop</h2>
               <span className="ml-auto text-xs text-muted-foreground">{receipts.totalReceived} units confirmed</span>
-            </div>
-            <p className="text-xs text-muted-foreground mb-3">When goods arrive from the bakery, count them and confirm what you received.</p>
-            {receipts.byProduct.length > 0 && (
-              <div className="overflow-x-auto mb-3">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-2 text-muted-foreground font-medium">Product</th>
-                      <th className="text-right py-2 text-muted-foreground font-medium">Confirmed Received</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {receipts.byProduct.map((r: any) => (
-                      <tr key={r.productId} className="border-b border-border last:border-0">
-                        <td className="py-2 font-medium">{r.productName}</td>
-                        <td className="py-2 text-right text-blue-700 font-semibold">{r.totalReceived}</td>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${collapsed["receipt"] ? "-rotate-90" : ""}`} />
+            </button>
+            {!collapsed["receipt"] && <>
+              <p className="text-xs text-muted-foreground mb-3">When goods arrive from the bakery, count them and confirm what you received.</p>
+              {receipts.byProduct.length > 0 && (
+                <div className="overflow-x-auto mb-3">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-2 text-muted-foreground font-medium">Product</th>
+                        <th className="text-right py-2 text-muted-foreground font-medium">Confirmed Received</th>
                       </tr>
+                    </thead>
+                    <tbody>
+                      {receipts.byProduct.map((r: any) => (
+                        <tr key={r.productId} className="border-b border-border last:border-0">
+                          <td className="py-2 font-medium">{r.productName}</td>
+                          <td className="py-2 text-right text-blue-700 font-semibold">{r.totalReceived}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {receipts.entries.length > 0 && (
+                <details className="mb-3">
+                  <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">View receipt log</summary>
+                  <div className="mt-2 space-y-1.5 max-h-36 overflow-y-auto">
+                    {receipts.entries.map((e: any) => (
+                      <div key={e.id} className="flex justify-between text-xs py-1 border-b border-border last:border-0">
+                        <span className="text-muted-foreground"><span className="text-foreground font-medium">{e.receivedBy}</span> confirmed {e.quantityReceived} × {e.productName}{e.notes ? ` (${e.notes})` : ""}</span>
+                        <span className="text-muted-foreground ml-3 shrink-0">{formatTime(e.receivedAt)}</span>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {receipts.entries.length > 0 && (
-              <details className="mb-3">
-                <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">View receipt log</summary>
-                <div className="mt-2 space-y-1.5 max-h-36 overflow-y-auto">
-                  {receipts.entries.map((e: any) => (
-                    <div key={e.id} className="flex justify-between text-xs py-1 border-b border-border last:border-0">
-                      <span className="text-muted-foreground"><span className="text-foreground font-medium">{e.receivedBy}</span> confirmed {e.quantityReceived} × {e.productName}{e.notes ? ` (${e.notes})` : ""}</span>
-                      <span className="text-muted-foreground ml-3 shrink-0">{formatTime(e.receivedAt)}</span>
+                  </div>
+                </details>
+              )}
+              {!showReceiptForm ? (
+                <Button size="sm" variant="outline" className="flex items-center gap-1.5" onClick={() => setShowReceiptForm(true)}>
+                  <Plus className="h-3.5 w-3.5" /> Confirm New Delivery
+                </Button>
+              ) : (
+                <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
+                  <p className="text-sm font-medium">What did you receive?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Product</label>
+                      <Select value={receiptForm.productId} onValueChange={(v) => setReceiptForm({ ...receiptForm, productId: v })}>
+                        <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
+                        <SelectContent>
+                          {(products ?? []).filter((p: any) => p.isActive && p.category === "baked_goods").map((p: any) => (
+                            <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  ))}
-                </div>
-              </details>
-            )}
-            {!showReceiptForm ? (
-              <Button size="sm" variant="outline" className="flex items-center gap-1.5" onClick={() => setShowReceiptForm(true)}>
-                <Plus className="h-3.5 w-3.5" /> Confirm New Delivery
-              </Button>
-            ) : (
-              <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
-                <p className="text-sm font-medium">What did you receive?</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Product</label>
-                    <Select value={receiptForm.productId} onValueChange={(v) => setReceiptForm({ ...receiptForm, productId: v })}>
-                      <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-                      <SelectContent>
-                        {(products ?? []).filter((p: any) => p.isActive && p.category === "baked_goods").map((p: any) => (
-                          <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Quantity received</label>
+                      <Input type="number" min="1" value={receiptForm.quantityReceived} onChange={(e) => setReceiptForm({ ...receiptForm, quantityReceived: e.target.value })} placeholder="e.g. 50" />
+                    </div>
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Quantity received</label>
-                    <Input type="number" min="1" value={receiptForm.quantityReceived} onChange={(e) => setReceiptForm({ ...receiptForm, quantityReceived: e.target.value })} placeholder="e.g. 50" />
+                    <label className="text-xs text-muted-foreground mb-1 block">Notes (optional)</label>
+                    <Input value={receiptForm.notes} onChange={(e) => setReceiptForm({ ...receiptForm, notes: e.target.value })} placeholder="e.g. 5 were broken" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" disabled={!receiptForm.productId || !receiptForm.quantityReceived || addReceiptMutation.isPending}
+                      onClick={() => addReceiptMutation.mutate({ productId: Number(receiptForm.productId), quantityReceived: Number(receiptForm.quantityReceived), notes: receiptForm.notes || undefined })}>
+                      {addReceiptMutation.isPending ? "Saving..." : "Confirm Receipt"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { setShowReceiptForm(false); setReceiptForm({ productId: "", quantityReceived: "", notes: "" }); }}>Cancel</Button>
                   </div>
                 </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Notes (optional)</label>
-                  <Input value={receiptForm.notes} onChange={(e) => setReceiptForm({ ...receiptForm, notes: e.target.value })} placeholder="e.g. 5 were broken" />
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" disabled={!receiptForm.productId || !receiptForm.quantityReceived || addReceiptMutation.isPending}
-                    onClick={() => addReceiptMutation.mutate({ productId: Number(receiptForm.productId), quantityReceived: Number(receiptForm.quantityReceived), notes: receiptForm.notes || undefined })}>
-                    {addReceiptMutation.isPending ? "Saving..." : "Confirm Receipt"}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => { setShowReceiptForm(false); setReceiptForm({ productId: "", quantityReceived: "", notes: "" }); }}>Cancel</Button>
-                </div>
-              </div>
-            )}
+              )}
+            </>}
           </CardContent>
         </Card>
       )}
@@ -624,12 +643,13 @@ export default function StaffDashboardPage() {
       {showSales && (
         <Card>
           <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-3">
+            <button className="w-full flex items-center gap-2 mb-3 text-left" onClick={() => toggleSection("drinks")}>
               <Coffee className="h-4 w-4 text-cyan-600" />
               <h2 className="font-semibold">Drinks Sold Today</h2>
               <span className="ml-auto font-bold text-cyan-700 text-sm">{formatUGX(drinkRevenue)}</span>
-            </div>
-            {drinksSoldToday.length === 0 ? (
+              <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${collapsed["drinks"] ? "-rotate-90" : ""}`} />
+            </button>
+            {!collapsed["drinks"] && (drinksSoldToday.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-3">No drinks sold through POS yet today</p>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-border">
@@ -656,7 +676,7 @@ export default function StaffDashboardPage() {
                   </tbody>
                 </table>
               </div>
-            )}
+            ))}
           </CardContent>
         </Card>
       )}
@@ -809,15 +829,16 @@ export default function StaffDashboardPage() {
 
       {/* ── STEP 3: BAKED GOODS SALES TODAY ── */}
       {showSales && (
-        <Card>
+        <Card id="section-sales">
           <CardContent className="p-5">
-            <div className="flex items-center gap-2 mb-3">
+            <button className="w-full flex items-center gap-2 mb-3 text-left" onClick={() => toggleSection("sales")}>
               <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold">3</div>
               <ShoppingCart className="h-4 w-4 text-purple-600" />
               <h2 className="font-semibold">Baked Goods Sales Today</h2>
               <span className="ml-auto text-sm font-bold text-primary">{formatUGX(sales.totalRevenue)}</span>
-            </div>
-            {sales.byProduct.filter((p: any) => !(products ?? []).find((pr: any) => pr.id === p.productId && pr.category === "drink")).length === 0 ? (
+              <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${collapsed["sales"] ? "-rotate-90" : ""}`} />
+            </button>
+            {!collapsed["sales"] && (sales.byProduct.filter((p: any) => !(products ?? []).find((pr: any) => pr.id === p.productId && pr.category === "drink")).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No baked goods sold yet today</p>
             ) : (
               <div className="overflow-x-auto mb-3">
@@ -846,8 +867,8 @@ export default function StaffDashboardPage() {
                   </tbody>
                 </table>
               </div>
-            )}
-            {sales.transactions.length > 0 && (
+            ))}
+            {!collapsed["sales"] && sales.transactions.length > 0 && (
               <details>
                 <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">View sales log ({sales.transactionCount} transactions)</summary>
                 <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto">
@@ -870,14 +891,16 @@ export default function StaffDashboardPage() {
       )}
 
       {/* ── STEP 4: END OF DAY — CASHIER ACCOUNTABILITY ── */}
-      <Card className="border-primary/30">
+      <Card id="section-endofday" className="border-primary/30">
         <CardContent className="p-5">
-          <div className="flex items-center gap-2 mb-4">
+          <button className="w-full flex items-center gap-2 mb-4 text-left" onClick={() => toggleSection("endofday")}>
             <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">4</div>
             <Users className="h-4 w-4 text-primary" />
             <h2 className="font-semibold">End of Day — Cashier Accountability</h2>
-          </div>
+            <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 ml-auto transition-transform ${collapsed["endofday"] ? "-rotate-90" : ""}`} />
+          </button>
 
+          {!collapsed["endofday"] && <>
           {accountability.cashiers.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">No cashier activity recorded yet today</p>
           ) : (
@@ -992,6 +1015,7 @@ export default function StaffDashboardPage() {
               </div>
             </>
           )}
+          </>}
         </CardContent>
       </Card>
     </div>

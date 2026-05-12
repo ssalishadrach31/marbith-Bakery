@@ -11,7 +11,7 @@ import {
   AlertTriangle, RefreshCw, Trash2, Database,
   ShoppingCart, Factory, CalendarDays, Wallet,
   Package, ClipboardList, Users, Bell, CheckCircle2,
-  Store, Plus, ToggleLeft, ToggleRight, MapPin, Phone,
+  Store, Plus, ToggleLeft, ToggleRight, MapPin, Phone, Tag,
 } from "lucide-react";
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -125,6 +125,7 @@ export default function DevToolsPage() {
       <Tabs defaultValue="data">
         <TabsList className="w-full">
           <TabsTrigger value="data" className="flex-1">Data Management</TabsTrigger>
+          <TabsTrigger value="prices" className="flex-1">Prices</TabsTrigger>
           <TabsTrigger value="shops" className="flex-1">Shops</TabsTrigger>
         </TabsList>
 
@@ -239,11 +240,143 @@ export default function DevToolsPage() {
           </Card>
         </TabsContent>
 
+        {/* ── PRICES TAB ───────────────────────────────────────────── */}
+        <TabsContent value="prices" className="mt-5">
+          <PricesPanel />
+        </TabsContent>
+
         {/* ── SHOPS TAB ────────────────────────────────────────────── */}
         <TabsContent value="shops" className="mt-5">
           <ShopsPanel />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function PricesPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editPrice, setEditPrice] = useState("");
+
+  const { data: products, isLoading } = useQuery<any[]>({
+    queryKey: ["dev-products"],
+    queryFn: () => apiFetch("/products?includeInactive=true"),
+  });
+
+  const updatePrice = useMutation({
+    mutationFn: ({ id, price }: { id: number; price: number }) =>
+      apiFetch(`/products/${id}`, { method: "PUT", body: JSON.stringify({ price }) }),
+    onSuccess: (updated: any) => {
+      qc.setQueryData(["dev-products"], (old: any[] | undefined) =>
+        (old ?? []).map((p) => (p.id === updated.id ? { ...p, price: updated.price } : p))
+      );
+      qc.invalidateQueries({ queryKey: ["products-active"] });
+      setEditingId(null);
+      toast({ title: "Price updated", description: `${updated.name}: ${updated.price.toLocaleString()} UGX` });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  function savePrice(id: number) {
+    const price = parseInt(editPrice);
+    if (!isNaN(price) && price > 0) updatePrice.mutate({ id, price });
+  }
+
+  const categories: string[] = [...new Set((products ?? []).map((p: any) => p.category as string))].sort();
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <p className="text-sm text-muted-foreground">
+          Update the selling price of any product. Changes take effect immediately in POS and daily counts.
+        </p>
+      </div>
+
+      {isLoading ? (
+        <div className="h-48 bg-muted rounded-xl animate-pulse" />
+      ) : (
+        categories.map((cat) => {
+          const catProducts = (products ?? []).filter((p: any) => p.category === cat);
+          return (
+            <div key={cat}>
+              <div className="flex items-center gap-2 mb-2">
+                <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {cat.replace(/_/g, " ")}
+                </h3>
+              </div>
+              <Card>
+                <CardContent className="p-0">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/40">
+                        <th className="text-left py-2.5 px-4 font-medium text-muted-foreground">Product</th>
+                        <th className="text-right py-2.5 px-4 font-medium text-muted-foreground">Current Price</th>
+                        <th className="py-2.5 px-3 w-28" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {catProducts.map((product: any) => (
+                        <tr key={product.id} className="border-t border-border hover:bg-muted/20">
+                          <td className="py-2.5 px-4 font-medium">
+                            {product.name}
+                            {!product.isActive && <span className="ml-2 text-xs text-muted-foreground italic">(inactive)</span>}
+                          </td>
+                          <td className="py-2.5 px-4 text-right">
+                            {editingId === product.id ? (
+                              <div className="flex items-center gap-1 justify-end">
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  className="h-7 w-24 text-right text-sm p-1"
+                                  value={editPrice}
+                                  onChange={(e) => setEditPrice(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") savePrice(product.id);
+                                    if (e.key === "Escape") setEditingId(null);
+                                  }}
+                                  autoFocus
+                                />
+                                <span className="text-xs text-muted-foreground shrink-0">UGX</span>
+                              </div>
+                            ) : (
+                              <span className="font-semibold text-primary">{product.price.toLocaleString()} UGX</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3 text-right">
+                            {editingId === product.id ? (
+                              <div className="flex gap-1 justify-end">
+                                <button
+                                  className="w-7 h-7 flex items-center justify-center bg-green-600 text-white rounded font-bold text-sm"
+                                  onClick={() => savePrice(product.id)}
+                                  disabled={updatePrice.isPending}
+                                >✓</button>
+                                <button
+                                  className="w-7 h-7 flex items-center justify-center border border-border rounded text-sm text-muted-foreground hover:text-foreground"
+                                  onClick={() => setEditingId(null)}
+                                >✕</button>
+                              </div>
+                            ) : (
+                              <button
+                                className="text-xs border border-border rounded px-2 py-1 hover:bg-muted transition-colors text-muted-foreground"
+                                onClick={() => { setEditingId(product.id); setEditPrice(String(product.price)); }}
+                              >
+                                Edit
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }
