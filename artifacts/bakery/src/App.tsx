@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { queryClient } from "@/lib/query-client";
 import { getUser, getToken } from "@/lib/auth";
-import { getRoleHome } from "@/components/layout";
+import { getRoleHome } from "@/lib/role-utils";
 import LoginPage from "@/pages/login";
 import DashboardPage from "@/pages/dashboard";
 import ProductionPage from "@/pages/production";

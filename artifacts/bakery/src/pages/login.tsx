@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useLogin } from "@workspace/api-client-react";
 import { setToken, setUser } from "@/lib/auth";
-import { getRoleHome } from "@/components/layout";
+import { getRoleHome } from "@/lib/role-utils";
 import { queryClient } from "@/lib/query-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

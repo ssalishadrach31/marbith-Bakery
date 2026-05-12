@@ -48,15 +48,6 @@ const navItems: NavItem[] = [
   { href: "/rider-deliveries", label: "My Deliveries",   icon: Truck,           roles: ["rider"] },
 ];
 
-// Where each role lands after login
-export function getRoleHome(role: string): string {
-  if (role === "admin") return "/dashboard";
-  if (role === "rider") return "/rider-deliveries";
-  if (role === "cashier") return "/staff-dashboard";
-  if (role === "baker") return "/baker-dashboard";
-  return "/staff-dashboard"; // staff
-}
-
 export default function Layout({ children }: { children: React.ReactNode }) {
   const user = getUser();
   const [location, navigate] = useLocation();
@@ -103,18 +94,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           );
         })}
       </nav>
-      <div className="px-3 py-4 border-t border-sidebar-border space-y-1">
-        <div className="flex items-center gap-2 px-1 py-1">
-          <NotificationBell />
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 flex-1 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-          >
-            <LogOut className="h-4 w-4 shrink-0" />
-            Sign Out
-          </button>
-        </div>
-        <p className="text-center text-xs text-sidebar-foreground/25 pt-1">
+      <div className="px-3 py-4 border-t border-sidebar-border">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          Sign Out
+        </button>
+        <p className="text-center text-xs text-sidebar-foreground/25 pt-2">
           Dev: <span className="text-sidebar-foreground/35">Shadrach Ssali</span>
         </p>
       </div>
@@ -123,10 +111,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-background">
+      {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 bg-sidebar shrink-0 border-r border-sidebar-border">
         <SidebarContent />
       </aside>
 
+      {/* Mobile drawer */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
@@ -142,14 +132,32 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
+      {/* Main area */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <header className="flex md:hidden items-center justify-between px-4 py-3 border-b border-border bg-card">
-          <button onClick={() => setSidebarOpen(true)} className="text-foreground">
-            <Menu className="h-5 w-5" />
-          </button>
-          <span className="font-bold text-primary">Marbith Bakery</span>
+        {/* Top header — visible on all screen sizes */}
+        <header className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card shrink-0">
+          {/* Left: hamburger on mobile, page label on desktop */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden text-foreground"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <span className="font-bold text-primary md:hidden">Marbith Bakery</span>
+            <span className="hidden md:block text-sm font-medium text-muted-foreground">
+              {user?.name && (
+                <span>
+                  Welcome back, <span className="text-foreground font-semibold">{user.name.split(" ")[0]}</span>
+                </span>
+              )}
+            </span>
+          </div>
+
+          {/* Right: notification bell always top-right */}
           <NotificationBell />
         </header>
+
         <main className="flex-1 overflow-y-auto">
           <div className="p-4 md:p-6 max-w-7xl mx-auto">
             {children}
