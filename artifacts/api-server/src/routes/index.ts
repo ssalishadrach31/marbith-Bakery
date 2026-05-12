@@ -16,6 +16,7 @@ import staffDashboardRouter from "./staff-dashboard";
 import shopReceiptsRouter from "./shop-receipts";
 import dailyCountsRouter from "./daily-counts";
 import expensesRouter from "./expenses";
+import approvalsRouter from "./approvals";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(staffDashboardRouter);
 router.use(shopReceiptsRouter);
 router.use(dailyCountsRouter);
 router.use(expensesRouter);
+router.use(approvalsRouter);
 
 export default router;
