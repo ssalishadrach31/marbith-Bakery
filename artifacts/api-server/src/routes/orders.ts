@@ -26,7 +26,7 @@ router.get("/orders", async (req, res): Promise<void> => {
   const qp = ListOrdersQueryParams.safeParse(req.query);
   let orders;
   if (qp.success && qp.data.status) {
-    orders = await db.select().from(ordersTable).where(eq(ordersTable.status, qp.data.status as string)).orderBy(ordersTable.placedAt);
+    orders = await db.select().from(ordersTable).where(eq(ordersTable.status, qp.data.status as "pending" | "confirmed" | "out_for_delivery" | "delivered" | "cancelled")).orderBy(ordersTable.placedAt);
   } else {
     orders = await db.select().from(ordersTable).orderBy(ordersTable.placedAt);
   }

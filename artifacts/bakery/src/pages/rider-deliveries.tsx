@@ -20,11 +20,11 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function RiderDeliveriesPage() {
   const user = getUser();
-  const { data: deliveries, isLoading } = useListDeliveries({ params: user?.employeeId ? { riderId: user.employeeId } : {}, query: { queryKey: getListDeliveriesQueryKey() } });
+  const { data: deliveries, isLoading } = useListDeliveries(user?.employeeId ? { riderId: user.employeeId } : undefined, { query: { queryKey: getListDeliveriesQueryKey() } });
   const updateStatus = useUpdateDeliveryStatus();
   const { toast } = useToast();
 
-  const [selected, setSelected] = useState<typeof deliveries extends (infer T)[] | undefined ? T : never | null>(null);
+  const [selected, setSelected] = useState<NonNullable<typeof deliveries>[0] | null>(null);
   const [newStatus, setNewStatus] = useState("");
   const [feeCollected, setFeeCollected] = useState(false);
 

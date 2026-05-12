@@ -21,11 +21,11 @@ const STATUS_COLORS: Record<string, string> = {
 const DELIVERY_STATUSES = ["assigned", "picked_up", "delivered", "failed"];
 
 export default function DeliveriesPage() {
-  const { data: deliveries, isLoading } = useListDeliveries({ query: { queryKey: getListDeliveriesQueryKey() } });
+  const { data: deliveries, isLoading } = useListDeliveries(undefined, { query: { queryKey: getListDeliveriesQueryKey() } });
   const updateStatus = useUpdateDeliveryStatus();
   const { toast } = useToast();
 
-  const [selected, setSelected] = useState<typeof deliveries extends (infer T)[] | undefined ? T : never | null>(null);
+  const [selected, setSelected] = useState<NonNullable<typeof deliveries>[0] | null>(null);
   const [newStatus, setNewStatus] = useState("");
   const [feeCollected, setFeeCollected] = useState(false);
 

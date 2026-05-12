@@ -31,7 +31,7 @@ export default function POSPage() {
   const [receiptSaleId, setReceiptSaleId] = useState<number | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
 
-  const { data: receiptData } = useGetSale(receiptSaleId ?? 0, { query: { enabled: !!receiptSaleId } });
+  const { data: receiptData } = useGetSale(receiptSaleId ?? 0, { query: { enabled: !!receiptSaleId, queryKey: ["sale", receiptSaleId] } });
 
   const activeProducts = products?.filter((p) => p.isActive && p.currentStock > 0) ?? [];
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);

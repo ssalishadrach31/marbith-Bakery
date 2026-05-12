@@ -23,13 +23,13 @@ const STATUSES = ["pending", "confirmed", "out_for_delivery", "delivered", "canc
 
 export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
-  const { data: orders, isLoading } = useListOrders({ params: statusFilter !== "all" ? { status: statusFilter } : undefined, query: { queryKey: getListOrdersQueryKey() } });
+  const { data: orders, isLoading } = useListOrders(statusFilter !== "all" ? { status: statusFilter } : undefined, { query: { queryKey: getListOrdersQueryKey() } });
   const { data: riders } = useListRiders();
   const updateStatus = useUpdateOrderStatus();
   const assignDelivery = useAssignDelivery();
   const { toast } = useToast();
 
-  const [selectedOrder, setSelectedOrder] = useState<typeof orders extends (infer T)[] | undefined ? T : never | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<NonNullable<typeof orders>[0] | null>(null);
   const [newStatus, setNewStatus] = useState("");
   const [assignModal, setAssignModal] = useState<number | null>(null);
   const [riderId, setRiderId] = useState("");

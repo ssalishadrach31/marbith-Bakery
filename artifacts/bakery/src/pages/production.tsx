@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function ProductionPage() {
   const { data: products } = useListProducts();
-  const { data: records, isLoading } = useListProduction({ query: { queryKey: getListProductionQueryKey() } });
+  const { data: records, isLoading } = useListProduction(undefined, { query: { queryKey: getListProductionQueryKey() } });
   const { data: todaySummary } = useGetTodayProductionSummary({ query: { queryKey: getGetTodayProductionSummaryQueryKey() } });
   const createMutation = useCreateProduction();
   const { toast } = useToast();

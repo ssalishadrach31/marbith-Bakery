@@ -12,8 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function PaymentsPage() {
   const today = new Date().toISOString().split("T")[0];
-  const { data: payments, isLoading } = useListPayments({ params: { date: today }, query: { queryKey: getListPaymentsQueryKey({ date: today }) } });
-  const { data: breakdown } = useGetRevenueBreakdown({ params: { date: today }, query: { queryKey: getGetRevenueBreakdownQueryKey({ date: today }) } });
+  const { data: payments, isLoading } = useListPayments({ date: today }, { query: { queryKey: getListPaymentsQueryKey({ date: today }) } });
+  const { data: breakdown } = useGetRevenueBreakdown({ date: today }, { query: { queryKey: getGetRevenueBreakdownQueryKey({ date: today }) } });
   const recordPayment = useRecordPayment();
   const { toast } = useToast();
 

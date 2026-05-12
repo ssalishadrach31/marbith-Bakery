@@ -47,7 +47,7 @@ export default function DashboardPage() {
   const { data: summary, isLoading } = useGetDashboardSummary({ query: { queryKey: getGetDashboardSummaryQueryKey() } });
   const { data: lowStock } = useGetLowStockItems({ query: { queryKey: getGetLowStockItemsQueryKey() } });
   const { data: activity } = useGetRecentActivity({ query: { queryKey: getGetRecentActivityQueryKey() } });
-  const { data: allOrders } = useListOrders({ query: { queryKey: getListOrdersQueryKey() } });
+  const { data: allOrders } = useListOrders(undefined, { query: { queryKey: getListOrdersQueryKey() } });
 
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 

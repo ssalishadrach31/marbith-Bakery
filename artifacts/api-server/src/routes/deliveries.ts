@@ -33,7 +33,7 @@ router.get("/deliveries", async (req, res): Promise<void> => {
   if (qp.success && qp.data.riderId) {
     deliveries = await db.select().from(deliveriesTable).where(eq(deliveriesTable.riderId, qp.data.riderId));
   } else if (qp.success && qp.data.status) {
-    deliveries = await db.select().from(deliveriesTable).where(eq(deliveriesTable.status, qp.data.status as string));
+    deliveries = await db.select().from(deliveriesTable).where(eq(deliveriesTable.status, qp.data.status as "assigned" | "picked_up" | "delivered" | "failed"));
   } else {
     deliveries = await db.select().from(deliveriesTable);
   }

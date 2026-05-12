@@ -23,7 +23,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 export default function EmployeesPage() {
   const { data: employees, isLoading } = useListEmployees({ query: { queryKey: getListEmployeesQueryKey() } });
-  const { data: attendance } = useListAttendance({ query: { queryKey: getListAttendanceQueryKey() } });
+  const { data: attendance } = useListAttendance(undefined, { query: { queryKey: getListAttendanceQueryKey() } });
   const createEmployee = useCreateEmployee();
   const deleteEmployee = useDeleteEmployee();
   const checkIn = useCheckIn();

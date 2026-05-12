@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, employeesTable, attendanceTable } from "@workspace/db";
+import { db, employeesTable, attendanceTable, deliveriesTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { CreateEmployeeBody, GetEmployeeParams, UpdateEmployeeBody, UpdateEmployeeParams, DeleteEmployeeParams, CheckInBody, CheckOutParams, ListAttendanceQueryParams } from "@workspace/api-zod";
 
@@ -47,7 +47,11 @@ router.delete("/employees/:id", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = DeleteEmployeeParams.safeParse({ id: parseInt(raw, 10) });
   if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
-  await db.delete(employeesTable).where(eq(employeesTable.id, params.data.id));
+  const empId = params.data.id;
+  // Clear FK references before deleting the employee
+  await db.delete(attendanceTable).where(eq(attendanceTable.employeeId, empId));
+  await db.update(deliveriesTable).set({ riderId: null }).where(eq(deliveriesTable.riderId, empId));
+  await db.delete(employeesTable).where(eq(employeesTable.id, empId));
   res.sendStatus(204);
 });
 
