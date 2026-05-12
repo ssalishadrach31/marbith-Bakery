@@ -137,7 +137,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Main area */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {/* Top header — visible on all screen sizes */}
-        <header className="flex items-center justify-between px-4 py-2.5 border-b border-amber-200 shrink-0" style={{ background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)" }}>
+        <header className="flex items-center justify-between px-4 py-2.5 border-b border-amber-400 shrink-0" style={{ background: "linear-gradient(135deg, #fcd34d 0%, #f59e0b 100%)" }}>
           {/* Left: hamburger on mobile, page label on desktop */}
           <div className="flex items-center gap-3">
             <button

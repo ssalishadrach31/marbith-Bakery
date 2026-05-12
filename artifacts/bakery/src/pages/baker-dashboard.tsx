@@ -17,6 +17,7 @@ import {
   IceCream,
   Droplets,
   Coffee,
+  Milk,
   ArrowRight,
   ChevronLeft,
   CalendarDays,
@@ -232,6 +233,7 @@ export default function BakerDashboardPage() {
   const iceCreamEntries = buildCountEntries("ice_cream");
   const juiceEntries = buildCountEntries("juice");
   const coffeeEntries = buildCountEntries("coffee");
+  const milkEntries = buildCountEntries("milk");
 
   const calcRevenue = (entries: CountEntry[]) =>
     entries.reduce((s, e) => {
@@ -242,6 +244,7 @@ export default function BakerDashboardPage() {
   const iceCreamRevenue = calcRevenue(iceCreamEntries);
   const juiceRevenue = calcRevenue(juiceEntries);
   const coffeeRevenue = calcRevenue(coffeeEntries);
+  const milkRevenue = calcRevenue(milkEntries);
 
   const productionEntries: any[] = todaySummary?.entries ?? [];
   const productionByProduct: any[] = todaySummary?.byProduct ?? [];
@@ -477,14 +480,14 @@ export default function BakerDashboardPage() {
         </Card>
       )}
 
-      {/* ── ICE CREAM / JUICE / COFFEE COUNTS ── */}
-      {(iceCreamEntries.length > 0 || juiceEntries.length > 0 || coffeeEntries.length > 0) && (
+      {/* ── ICE CREAM / JUICE / COFFEE / MILK COUNTS ── */}
+      {(iceCreamEntries.length > 0 || juiceEntries.length > 0 || coffeeEntries.length > 0 || milkEntries.length > 0) && (
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <IceCream className="h-4 w-4 text-pink-500" />
-                <h2 className="font-semibold">Ice Cream · Juice · Coffee Counts</h2>
+                <h2 className="font-semibold">Ice Cream · Juice · Coffee · Milk Counts</h2>
               </div>
               <div className="flex items-center gap-1.5">
                 <button onClick={prevDay} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
@@ -541,6 +544,19 @@ export default function BakerDashboardPage() {
               </div>
             )}
 
+            {milkEntries.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <Milk className="h-3.5 w-3.5" /> Milk
+                </p>
+                <div className="space-y-2">
+                  {milkEntries.map((e) => (
+                    <CountRow key={e.productId} entry={e} onSave={handleSaveCount} isSaving={saveCountMutation.isPending} />
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Summary */}
             <div className="space-y-1.5 mt-3 pt-3 border-t border-border">
               {iceCreamRevenue > 0 && (
@@ -566,10 +582,16 @@ export default function BakerDashboardPage() {
                   <span className="font-bold text-amber-700">{formatUGX(coffeeRevenue)}</span>
                 </div>
               )}
-              {(iceCreamRevenue + juiceRevenue + coffeeRevenue) > 0 && (
+              {milkRevenue > 0 && (
+                <div className="flex justify-between items-center px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-sm">
+                  <span className="flex items-center gap-2 text-blue-700"><Milk className="h-4 w-4" /> Milk</span>
+                  <span className="font-bold text-blue-700">{formatUGX(milkRevenue)}</span>
+                </div>
+              )}
+              {(iceCreamRevenue + juiceRevenue + coffeeRevenue + milkRevenue) > 0 && (
                 <div className="flex justify-between items-center px-3 py-2.5 bg-primary/5 border border-primary/20 rounded-lg font-bold mt-1">
                   <span className="text-sm">Total Counted Sales</span>
-                  <span className="text-primary">{formatUGX(iceCreamRevenue + juiceRevenue + coffeeRevenue)}</span>
+                  <span className="text-primary">{formatUGX(iceCreamRevenue + juiceRevenue + coffeeRevenue + milkRevenue)}</span>
                 </div>
               )}
             </div>
