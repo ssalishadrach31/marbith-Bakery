@@ -23,6 +23,7 @@ import StaffDashboardPage from "@/pages/staff-dashboard";
 import BakerDashboardPage from "@/pages/baker-dashboard";
 import ExpensesPage from "@/pages/expenses";
 import DailyReportPage from "@/pages/daily-report";
+import DevToolsPage from "@/pages/dev-tools";
 import Layout from "@/components/layout";
 import NotFound from "@/pages/not-found";
 
@@ -86,6 +87,9 @@ function Router() {
       </Route>
       <Route path="/daily-report">
         {() => <ProtectedRoute component={DailyReportPage} roles={["admin"]} />}
+      </Route>
+      <Route path="/dev-tools">
+        {() => <ProtectedRoute component={DevToolsPage} roles={["admin"]} />}
       </Route>
       <Route path="/">
         {() => {

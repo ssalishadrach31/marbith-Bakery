@@ -18,6 +18,7 @@ import dailyCountsRouter from "./daily-counts";
 import expensesRouter from "./expenses";
 import approvalsRouter from "./approvals";
 import notificationsRouter from "./notifications";
+import devToolsRouter from "./dev-tools";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(dailyCountsRouter);
 router.use(expensesRouter);
 router.use(approvalsRouter);
 router.use(notificationsRouter);
+router.use(devToolsRouter);
 
 export default router;
