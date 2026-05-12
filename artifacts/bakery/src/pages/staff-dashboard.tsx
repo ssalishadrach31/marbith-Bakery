@@ -8,8 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   Factory, ShoppingCart, Package, Wallet,
-  Clock, User, RefreshCw, CheckCircle2,
+  Clock, RefreshCw, CheckCircle2,
   Truck, ChevronRight, Plus, Users,
+  IceCream, Coffee, Droplets,
 } from "lucide-react";
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -35,6 +36,203 @@ function StepBadge({ n, label, done }: { n: number; label: string; done: boolean
   );
 }
 
+type CountEntry = {
+  productId: number;
+  productName: string;
+  price: number;
+  category: string;
+  opening?: number;
+  closing?: number;
+  openingBy?: string;
+  closingBy?: string;
+};
+
+function CountSection({
+  title,
+  icon,
+  entries,
+  color,
+  onSave,
+  isSaving,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  entries: CountEntry[];
+  color: string;
+  onSave: (productId: number, countType: "opening" | "closing", quantity: number) => void;
+  isSaving: boolean;
+}) {
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  const totalSold = entries.reduce((s, e) => {
+    const sold = (e.opening ?? 0) - (e.closing ?? 0);
+    return s + (sold > 0 ? sold : 0);
+  }, 0);
+  const totalRevenue = entries.reduce((s, e) => {
+    const sold = (e.opening ?? 0) - (e.closing ?? 0);
+    return s + (sold > 0 ? sold * e.price : 0);
+  }, 0);
+
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <span className={`text-${color}-600`}>{icon}</span>
+          <h2 className="font-semibold">{title}</h2>
+          <div className="ml-auto flex gap-3 text-sm">
+            <span className="text-muted-foreground">Sold: <span className="font-bold text-foreground">{totalSold}</span></span>
+            <span className="text-muted-foreground">Revenue: <span className={`font-bold text-${color}-700`}>{formatUGX(totalRevenue)}</span></span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/40 border-b border-border">
+                <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Item</th>
+                <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">Price</th>
+                <th className="text-center py-2.5 px-3 font-medium text-blue-600">Opening</th>
+                <th className="text-center py-2.5 px-3 font-medium text-purple-600">Closing</th>
+                <th className="text-center py-2.5 px-3 font-medium text-green-600">Sold</th>
+                <th className="text-right py-2.5 px-3 font-medium text-muted-foreground">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry) => {
+                const sold = entry.opening !== undefined && entry.closing !== undefined
+                  ? Math.max(0, entry.opening - entry.closing)
+                  : null;
+                const revenue = sold !== null ? sold * entry.price : null;
+                const openKey = `${entry.productId}-opening`;
+                const closeKey = `${entry.productId}-closing`;
+
+                return (
+                  <tr key={entry.productId} className="border-t border-border hover:bg-muted/20">
+                    <td className="py-2.5 px-3 font-medium">{entry.productName}</td>
+                    <td className="py-2.5 px-3 text-center text-muted-foreground">{formatUGX(entry.price)}</td>
+
+                    {/* Opening count */}
+                    <td className="py-2 px-2 text-center">
+                      {entry.opening !== undefined ? (
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="font-bold text-blue-700 text-base">{entry.opening}</span>
+                          <button
+                            className="text-xs text-muted-foreground hover:text-foreground ml-1"
+                            onClick={() => setDrafts((d) => ({ ...d, [openKey]: String(entry.opening) }))}
+                          >✎</button>
+                        </div>
+                      ) : drafts[openKey] !== undefined ? (
+                        <div className="flex items-center gap-1 justify-center">
+                          <Input
+                            type="number"
+                            min="0"
+                            className="h-7 w-16 text-center text-sm p-1"
+                            value={drafts[openKey]}
+                            onChange={(e) => setDrafts((d) => ({ ...d, [openKey]: e.target.value }))}
+                            autoFocus
+                          />
+                          <button
+                            className="text-green-600 font-bold text-lg leading-none"
+                            disabled={isSaving}
+                            onClick={() => {
+                              const q = parseInt(drafts[openKey] ?? "");
+                              if (!isNaN(q) && q >= 0) {
+                                onSave(entry.productId, "opening", q);
+                                setDrafts((d) => { const nd = { ...d }; delete nd[openKey]; return nd; });
+                              }
+                            }}
+                          >✓</button>
+                        </div>
+                      ) : (
+                        <button
+                          className="text-xs border border-dashed border-blue-300 text-blue-500 rounded px-2 py-1 hover:bg-blue-50"
+                          onClick={() => setDrafts((d) => ({ ...d, [openKey]: "" }))}
+                        >Enter</button>
+                      )}
+                    </td>
+
+                    {/* Closing count */}
+                    <td className="py-2 px-2 text-center">
+                      {entry.closing !== undefined ? (
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="font-bold text-purple-700 text-base">{entry.closing}</span>
+                          <button
+                            className="text-xs text-muted-foreground hover:text-foreground ml-1"
+                            onClick={() => setDrafts((d) => ({ ...d, [closeKey]: String(entry.closing) }))}
+                          >✎</button>
+                        </div>
+                      ) : drafts[closeKey] !== undefined ? (
+                        <div className="flex items-center gap-1 justify-center">
+                          <Input
+                            type="number"
+                            min="0"
+                            className="h-7 w-16 text-center text-sm p-1"
+                            value={drafts[closeKey]}
+                            onChange={(e) => setDrafts((d) => ({ ...d, [closeKey]: e.target.value }))}
+                            autoFocus
+                          />
+                          <button
+                            className="text-green-600 font-bold text-lg leading-none"
+                            disabled={isSaving}
+                            onClick={() => {
+                              const q = parseInt(drafts[closeKey] ?? "");
+                              if (!isNaN(q) && q >= 0) {
+                                onSave(entry.productId, "closing", q);
+                                setDrafts((d) => { const nd = { ...d }; delete nd[closeKey]; return nd; });
+                              }
+                            }}
+                          >✓</button>
+                        </div>
+                      ) : (
+                        <button
+                          className="text-xs border border-dashed border-purple-300 text-purple-500 rounded px-2 py-1 hover:bg-purple-50"
+                          onClick={() => setDrafts((d) => ({ ...d, [closeKey]: "" }))}
+                        >Enter</button>
+                      )}
+                    </td>
+
+                    {/* Sold */}
+                    <td className="py-2.5 px-3 text-center">
+                      {sold !== null ? (
+                        <span className={`font-bold text-base ${sold === 0 ? "text-muted-foreground" : "text-green-700"}`}>{sold}</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+
+                    {/* Revenue */}
+                    <td className="py-2.5 px-3 text-right font-semibold">
+                      {revenue !== null ? (
+                        <span className={revenue === 0 ? "text-muted-foreground" : "text-foreground"}>{formatUGX(revenue)}</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {/* Totals row */}
+              <tr className="border-t-2 border-border bg-muted/30 font-bold">
+                <td colSpan={4} className="py-2.5 px-3 text-sm">Total</td>
+                <td className="py-2.5 px-3 text-center text-green-700">{totalSold}</td>
+                <td className="py-2.5 px-3 text-right text-primary">{formatUGX(totalRevenue)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">Click "Enter" to record a count. Click ✎ to edit an existing count.</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+const DRINK_PRODUCTS = [
+  "Jesa Milk Flavored","Jesa Sachet","Fresh Dairy Tin","Jesa Milk","Probiotic Tin",
+  "Soda 330ml","Soda 500ml","Onner","Minute Maid","Minute Maid Big",
+  "Rockboom","Predator","Sting","Energy","Coffee Malt","Nkoge","Tamarind","Bongo",
+];
+
 export default function StaffDashboardPage() {
   const user = getUser();
   const { toast } = useToast();
@@ -55,6 +253,12 @@ export default function StaffDashboardPage() {
     queryFn: () => apiFetch("/products"),
   });
 
+  const { data: dailyCounts } = useQuery<any[]>({
+    queryKey: ["daily-counts"],
+    queryFn: () => apiFetch("/daily-counts"),
+    refetchInterval: 60_000,
+  });
+
   const [showReceiptForm, setShowReceiptForm] = useState(false);
   const [receiptForm, setReceiptForm] = useState({ productId: "", quantityReceived: "", notes: "" });
 
@@ -68,6 +272,19 @@ export default function StaffDashboardPage() {
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
+
+  const saveCountMutation = useMutation({
+    mutationFn: (data: object) => apiFetch("/daily-counts", { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: (result: any) => {
+      qc.invalidateQueries({ queryKey: ["daily-counts"] });
+      toast({ title: "Count saved", description: `${result.countType === "opening" ? "Opening" : "Closing"}: ${result.quantity} × ${result.productName}` });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  function handleSaveCount(productId: number, countType: "opening" | "closing", quantity: number) {
+    saveCountMutation.mutate({ productId, countType, quantity });
+  }
 
   if (isLoading) {
     return (
@@ -84,12 +301,11 @@ export default function StaffDashboardPage() {
   if (!data) return null;
 
   const { production, receipts, sales, inventory, accountability } = data;
-
   const hasProduction = production.totalUnits > 0;
   const hasReceipts = receipts.totalReceived > 0;
   const hasSales = sales.transactionCount > 0;
 
-  // Build receipt vs sold vs remaining per product for accountability table
+  // Build per-product accountability (received vs sold vs remaining)
   const productMap: Record<number, { name: string; received: number; sold: number; remaining: number; price: number }> = {};
   receipts.byProduct.forEach((r: any) => {
     productMap[r.productId] = { name: r.productName, received: r.totalReceived, sold: 0, remaining: 0, price: r.price ?? 0 };
@@ -102,6 +318,45 @@ export default function StaffDashboardPage() {
   });
   const accountabilityRows = Object.entries(productMap).map(([, v]) => v);
 
+  // Build count entries for ice cream and juice from dailyCounts
+  function buildCountEntries(category: string): CountEntry[] {
+    const catProducts = (products ?? []).filter((p: any) => p.category === category && p.isActive);
+    return catProducts.map((p: any) => {
+      const openRow = (dailyCounts ?? []).find((c: any) => c.productId === p.id && c.countType === "opening");
+      const closeRow = (dailyCounts ?? []).find((c: any) => c.productId === p.id && c.countType === "closing");
+      return {
+        productId: p.id,
+        productName: p.name,
+        price: p.price,
+        category,
+        opening: openRow?.quantity,
+        closing: closeRow?.quantity,
+        openingBy: openRow?.recordedBy,
+        closingBy: closeRow?.recordedBy,
+      };
+    });
+  }
+
+  const iceCreamEntries = buildCountEntries("ice_cream");
+  const juiceEntries = buildCountEntries("juice");
+
+  // Drinks sold today via POS
+  const drinksSoldToday = sales.byProduct.filter((p: any) =>
+    (products ?? []).find((pr: any) => pr.id === p.productId && pr.category === "drink")
+  );
+  const drinkRevenue = drinksSoldToday.reduce((s: number, p: any) => s + (p.revenue ?? 0), 0);
+
+  // Daily counts total revenue
+  const iceCreamRevenue = iceCreamEntries.reduce((s, e) => {
+    const sold = e.opening !== undefined && e.closing !== undefined ? Math.max(0, e.opening - e.closing) : 0;
+    return s + sold * e.price;
+  }, 0);
+  const juiceRevenue = juiceEntries.reduce((s, e) => {
+    const sold = e.opening !== undefined && e.closing !== undefined ? Math.max(0, e.opening - e.closing) : 0;
+    return s + sold * e.price;
+  }, 0);
+  const grandTotal = sales.totalRevenue + iceCreamRevenue + juiceRevenue;
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -113,7 +368,7 @@ export default function StaffDashboardPage() {
           </p>
         </div>
         <button
-          onClick={() => refetch()}
+          onClick={() => { refetch(); qc.invalidateQueries({ queryKey: ["daily-counts"] }); }}
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg px-3 py-2 transition-colors"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
@@ -129,6 +384,10 @@ export default function StaffDashboardPage() {
         <div>
           <div className="font-semibold text-sm">{user?.name} {user?.jobTitle && <span className="text-xs font-normal text-muted-foreground ml-1">· {user.jobTitle}</span>}</div>
           <div className="text-xs text-muted-foreground">Logged in today</div>
+        </div>
+        <div className="ml-auto text-right">
+          <div className="text-xs text-muted-foreground">Grand Total Today</div>
+          <div className="font-bold text-primary text-lg">{formatUGX(grandTotal)}</div>
         </div>
       </div>
 
@@ -175,7 +434,6 @@ export default function StaffDashboardPage() {
                 </table>
               </div>
             )}
-            {/* Production log */}
             {production.entries.length > 0 && (
               <details className="mt-3">
                 <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">View activity log</summary>
@@ -195,7 +453,7 @@ export default function StaffDashboardPage() {
 
       {/* ── STEP 2: SHOP RECEIPT ── */}
       {showSales && (
-        <Card className={!hasProduction ? "opacity-60" : ""}>
+        <Card className={!hasProduction ? "opacity-70" : ""}>
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">2</div>
@@ -204,14 +462,13 @@ export default function StaffDashboardPage() {
               <span className="ml-auto text-xs text-muted-foreground">{receipts.totalReceived} units confirmed</span>
             </div>
             <p className="text-xs text-muted-foreground mb-3">When goods arrive from the bakery, count them and confirm what you received.</p>
-
             {receipts.byProduct.length > 0 && (
               <div className="overflow-x-auto mb-3">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left py-2 text-muted-foreground font-medium">Product</th>
-                      <th className="text-right py-2 text-muted-foreground font-medium">Received</th>
+                      <th className="text-right py-2 text-muted-foreground font-medium">Confirmed Received</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -225,8 +482,6 @@ export default function StaffDashboardPage() {
                 </table>
               </div>
             )}
-
-            {/* Receipt log */}
             {receipts.entries.length > 0 && (
               <details className="mb-3">
                 <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">View receipt log</summary>
@@ -240,7 +495,6 @@ export default function StaffDashboardPage() {
                 </div>
               </details>
             )}
-
             {!showReceiptForm ? (
               <Button size="sm" variant="outline" className="flex items-center gap-1.5" onClick={() => setShowReceiptForm(true)}>
                 <Plus className="h-3.5 w-3.5" /> Confirm New Delivery
@@ -254,7 +508,7 @@ export default function StaffDashboardPage() {
                     <Select value={receiptForm.productId} onValueChange={(v) => setReceiptForm({ ...receiptForm, productId: v })}>
                       <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
                       <SelectContent>
-                        {(products ?? []).filter((p: any) => p.isActive).map((p: any) => (
+                        {(products ?? []).filter((p: any) => p.isActive && p.category === "baked_goods").map((p: any) => (
                           <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                         ))}
                       </SelectContent>
@@ -262,29 +516,16 @@ export default function StaffDashboardPage() {
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Quantity received</label>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={receiptForm.quantityReceived}
-                      onChange={(e) => setReceiptForm({ ...receiptForm, quantityReceived: e.target.value })}
-                      placeholder="e.g. 50"
-                    />
+                    <Input type="number" min="1" value={receiptForm.quantityReceived} onChange={(e) => setReceiptForm({ ...receiptForm, quantityReceived: e.target.value })} placeholder="e.g. 50" />
                   </div>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Notes (optional)</label>
-                  <Input
-                    value={receiptForm.notes}
-                    onChange={(e) => setReceiptForm({ ...receiptForm, notes: e.target.value })}
-                    placeholder="e.g. 5 were broken"
-                  />
+                  <Input value={receiptForm.notes} onChange={(e) => setReceiptForm({ ...receiptForm, notes: e.target.value })} placeholder="e.g. 5 were broken" />
                 </div>
                 <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    disabled={!receiptForm.productId || !receiptForm.quantityReceived || addReceiptMutation.isPending}
-                    onClick={() => addReceiptMutation.mutate({ productId: Number(receiptForm.productId), quantityReceived: Number(receiptForm.quantityReceived), notes: receiptForm.notes || undefined })}
-                  >
+                  <Button size="sm" disabled={!receiptForm.productId || !receiptForm.quantityReceived || addReceiptMutation.isPending}
+                    onClick={() => addReceiptMutation.mutate({ productId: Number(receiptForm.productId), quantityReceived: Number(receiptForm.quantityReceived), notes: receiptForm.notes || undefined })}>
                     {addReceiptMutation.isPending ? "Saving..." : "Confirm Receipt"}
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => { setShowReceiptForm(false); setReceiptForm({ productId: "", quantityReceived: "", notes: "" }); }}>Cancel</Button>
@@ -295,48 +536,107 @@ export default function StaffDashboardPage() {
         </Card>
       )}
 
-      {/* ── STEP 3: SALES TODAY ── */}
+      {/* ── DRINKS SOLD TODAY (POS) ── */}
+      {showSales && (
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Coffee className="h-4 w-4 text-cyan-600" />
+              <h2 className="font-semibold">Drinks Sold Today</h2>
+              <span className="ml-auto font-bold text-cyan-700 text-sm">{formatUGX(drinkRevenue)}</span>
+            </div>
+            {drinksSoldToday.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-3">No drinks sold through POS yet today</p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/40 border-b border-border">
+                      <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Drink</th>
+                      <th className="text-right py-2.5 px-3 font-medium text-muted-foreground">Units Sold</th>
+                      <th className="text-right py-2.5 px-3 font-medium text-muted-foreground">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {drinksSoldToday.map((p: any) => (
+                      <tr key={p.productId} className="border-t border-border hover:bg-muted/20">
+                        <td className="py-2.5 px-3 font-medium">{p.productName}</td>
+                        <td className="py-2.5 px-3 text-right">{p.qtySold}</td>
+                        <td className="py-2.5 px-3 text-right font-semibold text-cyan-700">{formatUGX(p.revenue)}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-t-2 border-border font-bold bg-muted/30">
+                      <td colSpan={2} className="py-2.5 px-3 text-sm">Total</td>
+                      <td className="py-2.5 px-3 text-right text-primary">{formatUGX(drinkRevenue)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── ICE CREAM COUNT ── */}
+      <CountSection
+        title="Ice Cream Count"
+        icon={<IceCream className="h-4 w-4" />}
+        entries={iceCreamEntries}
+        color="pink"
+        onSave={handleSaveCount}
+        isSaving={saveCountMutation.isPending}
+      />
+
+      {/* ── JUICE COUNT ── */}
+      <CountSection
+        title="Juice Count"
+        icon={<Droplets className="h-4 w-4" />}
+        entries={juiceEntries}
+        color="orange"
+        onSave={handleSaveCount}
+        isSaving={saveCountMutation.isPending}
+      />
+
+      {/* ── STEP 3: BAKED GOODS SALES TODAY ── */}
       {showSales && (
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold">3</div>
               <ShoppingCart className="h-4 w-4 text-purple-600" />
-              <h2 className="font-semibold">Sales Today</h2>
+              <h2 className="font-semibold">Baked Goods Sales Today</h2>
               <span className="ml-auto text-sm font-bold text-primary">{formatUGX(sales.totalRevenue)}</span>
             </div>
-
-            {sales.byProduct.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No sales recorded yet today</p>
+            {sales.byProduct.filter((p: any) => !(products ?? []).find((pr: any) => pr.id === p.productId && pr.category === "drink")).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No baked goods sold yet today</p>
             ) : (
               <div className="overflow-x-auto mb-3">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left py-2 text-muted-foreground font-medium">Product</th>
-                      <th className="text-right py-2 text-muted-foreground font-medium">Units Sold</th>
+                      <th className="text-right py-2 text-muted-foreground font-medium">Units</th>
                       <th className="text-right py-2 text-muted-foreground font-medium">Revenue</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sales.byProduct.map((p: any) => (
-                      <tr key={p.productId} className="border-b border-border last:border-0">
-                        <td className="py-2 font-medium">{p.productName}</td>
-                        <td className="py-2 text-right">{p.qtySold}</td>
-                        <td className="py-2 text-right font-semibold text-purple-700">{formatUGX(p.revenue)}</td>
-                      </tr>
-                    ))}
+                    {sales.byProduct
+                      .filter((p: any) => !(products ?? []).find((pr: any) => pr.id === p.productId && pr.category === "drink"))
+                      .map((p: any) => (
+                        <tr key={p.productId} className="border-b border-border last:border-0">
+                          <td className="py-2 font-medium">{p.productName}</td>
+                          <td className="py-2 text-right">{p.qtySold}</td>
+                          <td className="py-2 text-right font-semibold text-purple-700">{formatUGX(p.revenue)}</td>
+                        </tr>
+                      ))}
                     <tr className="font-bold">
-                      <td className="py-2 text-sm">Total</td>
-                      <td className="py-2 text-right text-sm">{sales.totalSoldUnits}</td>
+                      <td colSpan={2} className="py-2 text-sm">Total</td>
                       <td className="py-2 text-right text-primary">{formatUGX(sales.totalRevenue)}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             )}
-
-            {/* Sales log */}
             {sales.transactions.length > 0 && (
               <details>
                 <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">View sales log ({sales.transactionCount} transactions)</summary>
@@ -359,7 +659,7 @@ export default function StaffDashboardPage() {
         </Card>
       )}
 
-      {/* ── STEP 4: END OF DAY — STOCK & CASHIER ACCOUNTABILITY ── */}
+      {/* ── STEP 4: END OF DAY — CASHIER ACCOUNTABILITY ── */}
       <Card className="border-primary/30">
         <CardContent className="p-5">
           <div className="flex items-center gap-2 mb-4">
@@ -368,7 +668,6 @@ export default function StaffDashboardPage() {
             <h2 className="font-semibold">End of Day — Cashier Accountability</h2>
           </div>
 
-          {/* Per cashier */}
           {accountability.cashiers.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">No cashier activity recorded yet today</p>
           ) : (
@@ -394,13 +693,35 @@ export default function StaffDashboardPage() {
                 </div>
               ))}
 
-              {/* Combined total */}
               <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg border border-primary/20 mt-2">
                 <div className="flex items-center gap-2">
                   <Wallet className="h-4 w-4 text-primary" />
                   <span className="font-bold text-sm">Combined Total ({accountability.cashiers.length} cashier{accountability.cashiers.length !== 1 ? "s" : ""})</span>
                 </div>
                 <span className="font-bold text-primary text-lg">{formatUGX(accountability.combinedRevenue)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Ice cream + juice count totals summary */}
+          {(iceCreamRevenue > 0 || juiceRevenue > 0) && (
+            <div className="mb-4 space-y-2">
+              <p className="text-sm font-semibold text-muted-foreground">Additional Counted Sales</p>
+              {iceCreamRevenue > 0 && (
+                <div className="flex justify-between text-sm px-3 py-2 bg-pink-50 border border-pink-100 rounded-lg">
+                  <span className="flex items-center gap-2"><IceCream className="h-4 w-4 text-pink-500" /> Ice Cream</span>
+                  <span className="font-bold text-pink-700">{formatUGX(iceCreamRevenue)}</span>
+                </div>
+              )}
+              {juiceRevenue > 0 && (
+                <div className="flex justify-between text-sm px-3 py-2 bg-orange-50 border border-orange-100 rounded-lg">
+                  <span className="flex items-center gap-2"><Droplets className="h-4 w-4 text-orange-500" /> Juice</span>
+                  <span className="font-bold text-orange-700">{formatUGX(juiceRevenue)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg font-bold">
+                <span>Grand Total (POS + Ice Cream + Juice)</span>
+                <span className="text-primary text-lg">{formatUGX(grandTotal)}</span>
               </div>
             </div>
           )}
@@ -419,7 +740,7 @@ export default function StaffDashboardPage() {
                       <th className="text-right py-2.5 px-3 font-medium text-muted-foreground">Received</th>
                       <th className="text-right py-2.5 px-3 font-medium text-muted-foreground">Sold</th>
                       <th className="text-right py-2.5 px-3 font-medium text-muted-foreground">Remaining</th>
-                      <th className="text-right py-2.5 px-3 font-medium text-muted-foreground hidden md:table-cell">Stock Value</th>
+                      <th className="text-right py-2.5 px-3 font-medium text-muted-foreground hidden md:table-cell">Value</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -442,7 +763,6 @@ export default function StaffDashboardPage() {
                   </tbody>
                 </table>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">Remaining stock value = <span className="font-semibold">{formatUGX(inventory.reduce((s: number, i: any) => s + i.stockValue, 0))}</span></p>
             </>
           )}
         </CardContent>
