@@ -1,11 +1,8 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { getToken, getUser, formatUGX, formatTime } from "@/lib/auth";
+import { getToken, getUser, formatTime } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
 import {
   AlertTriangle,
   Factory,
@@ -14,13 +11,6 @@ import {
   Clock,
   RefreshCw,
   ChevronRight,
-  IceCream,
-  Droplets,
-  Coffee,
-  Milk,
-  ArrowRight,
-  ChevronLeft,
-  CalendarDays,
 } from "lucide-react";
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -37,113 +27,9 @@ async function apiFetch(path: string, options?: RequestInit) {
   return res.status === 204 ? null : res.json();
 }
 
-type CountEntry = {
-  productId: number;
-  productName: string;
-  price: number;
-  category: string;
-  opening?: number;
-  closing?: number;
-  openingBy?: string;
-  closingBy?: string;
-};
-
-function CountRow({
-  entry,
-  onSave,
-  isSaving,
-}: {
-  entry: CountEntry;
-  onSave: (productId: number, countType: "opening" | "closing", quantity: number) => void;
-  isSaving: boolean;
-}) {
-  const [openingVal, setOpeningVal] = useState("");
-  const [closingVal, setClosingVal] = useState("");
-  const sold =
-    entry.opening !== undefined && entry.closing !== undefined
-      ? Math.max(0, entry.opening - entry.closing)
-      : null;
-
-  return (
-    <div className="border border-border rounded-lg p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="font-medium text-sm">{entry.productName}</span>
-        {sold !== null && (
-          <span className="text-xs font-bold text-primary">{formatUGX(sold * entry.price)}</span>
-        )}
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">
-            Opening{entry.opening !== undefined ? ` · ${entry.opening} (by ${entry.openingBy ?? "?"})` : ""}
-          </p>
-          {entry.opening === undefined ? (
-            <div className="flex gap-1.5">
-              <Input
-                type="number"
-                min={0}
-                placeholder="0"
-                value={openingVal}
-                onChange={(e) => setOpeningVal(e.target.value)}
-                className="h-8 text-sm"
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 px-2 text-xs"
-                disabled={!openingVal || isSaving}
-                onClick={() => { onSave(entry.productId, "opening", parseInt(openingVal)); setOpeningVal(""); }}
-              >
-                Save
-              </Button>
-            </div>
-          ) : (
-            <div className="h-8 flex items-center text-sm font-semibold text-blue-700">{entry.opening}</div>
-          )}
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground mb-1">
-            Closing{entry.closing !== undefined ? ` · ${entry.closing} (by ${entry.closingBy ?? "?"})` : ""}
-          </p>
-          {entry.closing === undefined ? (
-            <div className="flex gap-1.5">
-              <Input
-                type="number"
-                min={0}
-                placeholder="0"
-                value={closingVal}
-                onChange={(e) => setClosingVal(e.target.value)}
-                className="h-8 text-sm"
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 px-2 text-xs"
-                disabled={!closingVal || isSaving || entry.opening === undefined}
-                onClick={() => { onSave(entry.productId, "closing", parseInt(closingVal)); setClosingVal(""); }}
-              >
-                Save
-              </Button>
-            </div>
-          ) : (
-            <div className="h-8 flex items-center text-sm font-semibold text-orange-700">{entry.closing}</div>
-          )}
-        </div>
-      </div>
-      {sold !== null && (
-        <div className="text-xs text-muted-foreground bg-muted/40 rounded px-2 py-1">
-          Sold today: <span className="font-semibold text-foreground">{sold}</span> units
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function BakerDashboardPage() {
   const user = getUser();
   const [, navigate] = useLocation();
-  const { toast } = useToast();
-  const qc = useQueryClient();
 
   const today = new Date().toLocaleDateString("en-UG", {
     weekday: "long",
@@ -151,24 +37,6 @@ export default function BakerDashboardPage() {
     month: "long",
     year: "numeric",
   });
-
-  const todayStr = new Date().toISOString().split("T")[0];
-  const [countsDate, setCountsDate] = useState(todayStr);
-
-  function prevDay() {
-    const d = new Date(countsDate + "T12:00:00");
-    d.setDate(d.getDate() - 1);
-    setCountsDate(d.toISOString().split("T")[0]);
-  }
-  function nextDay() {
-    const d = new Date(countsDate + "T12:00:00");
-    d.setDate(d.getDate() + 1);
-    if (d.toISOString().split("T")[0] <= todayStr) setCountsDate(d.toISOString().split("T")[0]);
-  }
-  const isToday = countsDate === todayStr;
-  const countsDateLabel = isToday
-    ? "Today"
-    : new Date(countsDate + "T12:00:00").toLocaleDateString("en-UG", { weekday: "short", day: "numeric", month: "short" });
 
   const { data: lowStock, isLoading: loadingStock, refetch: refetchStock, isFetching } = useQuery<any[]>({
     queryKey: ["low-stock"],
@@ -187,64 +55,6 @@ export default function BakerDashboardPage() {
     queryFn: () => apiFetch("/production/today-summary"),
     refetchInterval: 60_000,
   });
-
-  const { data: products } = useQuery<any[]>({
-    queryKey: ["products-active"],
-    queryFn: () => apiFetch("/products"),
-  });
-
-  const { data: dailyCounts } = useQuery<any[]>({
-    queryKey: ["daily-counts", countsDate],
-    queryFn: () => apiFetch(`/daily-counts?date=${countsDate}`),
-    refetchInterval: 60_000,
-  });
-
-  const saveCountMutation = useMutation({
-    mutationFn: (data: object) => apiFetch("/daily-counts", { method: "POST", body: JSON.stringify(data) }),
-    onSuccess: (result: any) => {
-      qc.invalidateQueries({ queryKey: ["daily-counts", countsDate] });
-      toast({ title: "Count saved", description: `${result.countType === "opening" ? "Opening" : "Closing"}: ${result.quantity} × ${result.productName}` });
-    },
-    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
-  });
-
-  function handleSaveCount(productId: number, countType: "opening" | "closing", quantity: number) {
-    saveCountMutation.mutate({ productId, countType, quantity, countDate: countsDate });
-  }
-
-  function buildCountEntries(category: string): CountEntry[] {
-    const catProducts = (products ?? []).filter((p: any) => p.category === category && p.isActive);
-    return catProducts.map((p: any) => {
-      const openRow = (dailyCounts ?? []).find((c: any) => c.productId === p.id && c.countType === "opening");
-      const closeRow = (dailyCounts ?? []).find((c: any) => c.productId === p.id && c.countType === "closing");
-      return {
-        productId: p.id,
-        productName: p.name,
-        price: p.price,
-        category,
-        opening: openRow?.quantity,
-        closing: closeRow?.quantity,
-        openingBy: openRow?.recordedBy,
-        closingBy: closeRow?.recordedBy,
-      };
-    });
-  }
-
-  const iceCreamEntries = buildCountEntries("ice_cream");
-  const juiceEntries = buildCountEntries("juice");
-  const coffeeEntries = buildCountEntries("coffee");
-  const milkEntries = buildCountEntries("milk");
-
-  const calcRevenue = (entries: CountEntry[]) =>
-    entries.reduce((s, e) => {
-      const sold = e.opening !== undefined && e.closing !== undefined ? Math.max(0, e.opening - e.closing) : 0;
-      return s + sold * e.price;
-    }, 0);
-
-  const iceCreamRevenue = calcRevenue(iceCreamEntries);
-  const juiceRevenue = calcRevenue(juiceEntries);
-  const coffeeRevenue = calcRevenue(coffeeEntries);
-  const milkRevenue = calcRevenue(milkEntries);
 
   const productionEntries: any[] = todaySummary?.entries ?? [];
   const productionByProduct: any[] = todaySummary?.byProduct ?? [];
@@ -266,7 +76,7 @@ export default function BakerDashboardPage() {
           </p>
         </div>
         <button
-          onClick={() => { refetchStock(); refetchSummary(); qc.invalidateQueries({ queryKey: ["daily-counts"] }); }}
+          onClick={() => { refetchStock(); refetchSummary(); }}
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg px-3 py-2 transition-colors"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
@@ -480,124 +290,6 @@ export default function BakerDashboardPage() {
         </Card>
       )}
 
-      {/* ── ICE CREAM / JUICE / COFFEE / MILK COUNTS ── */}
-      {(iceCreamEntries.length > 0 || juiceEntries.length > 0 || coffeeEntries.length > 0 || milkEntries.length > 0) && (
-        <Card>
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <IceCream className="h-4 w-4 text-pink-500" />
-                <h2 className="font-semibold">Ice Cream · Juice · Coffee · Milk Counts</h2>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button onClick={prevDay} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <span className="text-sm font-medium flex items-center gap-1.5 min-w-[80px] justify-center">
-                  <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" /> {countsDateLabel}
-                </span>
-                <button onClick={nextDay} disabled={isToday} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30">
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mb-3 bg-muted/30 rounded p-2">
-              Enter opening count at the start of the day and closing count at the end. Sold = Opening − Closing.
-            </p>
-
-            {iceCreamEntries.length > 0 && (
-              <div className="mb-4">
-                <p className="text-xs font-semibold text-pink-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                  <IceCream className="h-3.5 w-3.5" /> Ice Cream
-                </p>
-                <div className="space-y-2">
-                  {iceCreamEntries.map((e) => (
-                    <CountRow key={e.productId} entry={e} onSave={handleSaveCount} isSaving={saveCountMutation.isPending} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {juiceEntries.length > 0 && (
-              <div className="mb-4">
-                <p className="text-xs font-semibold text-orange-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                  <Droplets className="h-3.5 w-3.5" /> Juice
-                </p>
-                <div className="space-y-2">
-                  {juiceEntries.map((e) => (
-                    <CountRow key={e.productId} entry={e} onSave={handleSaveCount} isSaving={saveCountMutation.isPending} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {coffeeEntries.length > 0 && (
-              <div className="mb-4">
-                <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                  <Coffee className="h-3.5 w-3.5" /> Coffee & Tea
-                </p>
-                <div className="space-y-2">
-                  {coffeeEntries.map((e) => (
-                    <CountRow key={e.productId} entry={e} onSave={handleSaveCount} isSaving={saveCountMutation.isPending} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {milkEntries.length > 0 && (
-              <div className="mb-4">
-                <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                  <Milk className="h-3.5 w-3.5" /> Milk
-                </p>
-                <div className="space-y-2">
-                  {milkEntries.map((e) => (
-                    <CountRow key={e.productId} entry={e} onSave={handleSaveCount} isSaving={saveCountMutation.isPending} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Summary */}
-            <div className="space-y-1.5 mt-3 pt-3 border-t border-border">
-              {iceCreamRevenue > 0 && (
-                <div className="flex justify-between items-center px-3 py-2 bg-pink-50 border border-pink-100 rounded-lg text-sm">
-                  <span className="flex items-center gap-2 text-pink-700"><IceCream className="h-4 w-4" /> Ice Cream</span>
-                  <span className="font-bold text-pink-700">{formatUGX(iceCreamRevenue)}</span>
-                </div>
-              )}
-              {iceCreamEntries.some(e => e.opening !== undefined) && !iceCreamRevenue && (
-                <div className="flex justify-between items-center px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-sm">
-                  <span className="text-blue-600 text-xs flex items-center gap-1"><ArrowRight className="h-3 w-3" /> Ice cream: enter closing count</span>
-                </div>
-              )}
-              {juiceRevenue > 0 && (
-                <div className="flex justify-between items-center px-3 py-2 bg-orange-50 border border-orange-100 rounded-lg text-sm">
-                  <span className="flex items-center gap-2 text-orange-700"><Droplets className="h-4 w-4" /> Juice</span>
-                  <span className="font-bold text-orange-700">{formatUGX(juiceRevenue)}</span>
-                </div>
-              )}
-              {coffeeRevenue > 0 && (
-                <div className="flex justify-between items-center px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg text-sm">
-                  <span className="flex items-center gap-2 text-amber-700"><Coffee className="h-4 w-4" /> Coffee & Tea</span>
-                  <span className="font-bold text-amber-700">{formatUGX(coffeeRevenue)}</span>
-                </div>
-              )}
-              {milkRevenue > 0 && (
-                <div className="flex justify-between items-center px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-sm">
-                  <span className="flex items-center gap-2 text-blue-700"><Milk className="h-4 w-4" /> Milk</span>
-                  <span className="font-bold text-blue-700">{formatUGX(milkRevenue)}</span>
-                </div>
-              )}
-              {(iceCreamRevenue + juiceRevenue + coffeeRevenue + milkRevenue) > 0 && (
-                <div className="flex justify-between items-center px-3 py-2.5 bg-primary/5 border border-primary/20 rounded-lg font-bold mt-1">
-                  <span className="text-sm">Total Counted Sales</span>
-                  <span className="text-primary">{formatUGX(iceCreamRevenue + juiceRevenue + coffeeRevenue + milkRevenue)}</span>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
