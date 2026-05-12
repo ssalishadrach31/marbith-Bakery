@@ -20,6 +20,7 @@ import UsersPage from "@/pages/users";
 import OrderFormPage from "@/pages/order-form";
 import RiderDeliveriesPage from "@/pages/rider-deliveries";
 import StaffDashboardPage from "@/pages/staff-dashboard";
+import BakerDashboardPage from "@/pages/baker-dashboard";
 import ExpensesPage from "@/pages/expenses";
 import Layout from "@/components/layout";
 import NotFound from "@/pages/not-found";
@@ -74,7 +75,10 @@ function Router() {
         {() => <ProtectedRoute component={RiderDeliveriesPage} roles={["rider"]} />}
       </Route>
       <Route path="/staff-dashboard">
-        {() => <ProtectedRoute component={StaffDashboardPage} roles={["admin", "staff", "cashier", "baker"]} />}
+        {() => <ProtectedRoute component={StaffDashboardPage} roles={["admin", "staff", "cashier"]} />}
+      </Route>
+      <Route path="/baker-dashboard">
+        {() => <ProtectedRoute component={BakerDashboardPage} roles={["baker", "admin"]} />}
       </Route>
       <Route path="/expenses">
         {() => <ProtectedRoute component={ExpensesPage} roles={["admin", "staff", "cashier", "baker"]} />}

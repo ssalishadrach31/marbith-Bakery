@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   BarChart2,
   Receipt,
+  ChefHat,
 } from "lucide-react";
 
 interface NavItem {
@@ -29,20 +30,21 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: "/dashboard",       label: "Dashboard",       icon: LayoutDashboard, roles: ["admin"] },
-  { href: "/staff-dashboard", label: "Stock Counts",    icon: BarChart2,       roles: ["admin", "staff", "cashier", "baker"] },
-  { href: "/production",      label: "Production",      icon: Factory,         roles: ["admin", "staff", "baker"] },
-  { href: "/inventory",       label: "Inventory",       icon: Package,         roles: ["admin"] },
-  { href: "/pos",             label: "POS / Sales",     icon: ShoppingCart,    roles: ["admin", "staff", "cashier"] },
-  { href: "/orders",          label: "Orders",          icon: ClipboardList,   roles: ["admin"] },
-  { href: "/deliveries",      label: "Deliveries",      icon: Truck,           roles: ["admin"] },
-  { href: "/wholesale",       label: "Wholesale",       icon: Store,           roles: ["admin"] },
-  { href: "/employees",       label: "Employees",       icon: Users,           roles: ["admin"] },
-  { href: "/payments",        label: "Payments",        icon: CreditCard,      roles: ["admin"] },
-  { href: "/products",        label: "Products",        icon: Tag,             roles: ["admin"] },
-  { href: "/expenses",        label: "Expenses",        icon: Receipt,         roles: ["admin", "staff", "cashier", "baker"] },
-  { href: "/users",           label: "User Management", icon: ShieldCheck,     roles: ["admin"] },
-  { href: "/rider-deliveries",label: "My Deliveries",   icon: Truck,           roles: ["rider"] },
+  { href: "/dashboard",        label: "Dashboard",       icon: LayoutDashboard, roles: ["admin"] },
+  { href: "/staff-dashboard",  label: "Shift Dashboard", icon: BarChart2,       roles: ["admin", "staff", "cashier"] },
+  { href: "/baker-dashboard",  label: "Kitchen",         icon: ChefHat,         roles: ["baker"] },
+  { href: "/production",       label: "Production",      icon: Factory,         roles: ["admin", "staff", "baker"] },
+  { href: "/inventory",        label: "Inventory",       icon: Package,         roles: ["admin"] },
+  { href: "/pos",              label: "POS / Sales",     icon: ShoppingCart,    roles: ["admin", "staff", "cashier"] },
+  { href: "/orders",           label: "Orders",          icon: ClipboardList,   roles: ["admin"] },
+  { href: "/deliveries",       label: "Deliveries",      icon: Truck,           roles: ["admin"] },
+  { href: "/wholesale",        label: "Wholesale",       icon: Store,           roles: ["admin"] },
+  { href: "/employees",        label: "Employees",       icon: Users,           roles: ["admin"] },
+  { href: "/payments",         label: "Payments",        icon: CreditCard,      roles: ["admin"] },
+  { href: "/products",         label: "Products",        icon: Tag,             roles: ["admin"] },
+  { href: "/expenses",         label: "Expenses",        icon: Receipt,         roles: ["admin", "staff", "cashier", "baker"] },
+  { href: "/users",            label: "User Management", icon: ShieldCheck,     roles: ["admin"] },
+  { href: "/rider-deliveries", label: "My Deliveries",   icon: Truck,           roles: ["rider"] },
 ];
 
 // Where each role lands after login
@@ -50,7 +52,7 @@ export function getRoleHome(role: string): string {
   if (role === "admin") return "/dashboard";
   if (role === "rider") return "/rider-deliveries";
   if (role === "cashier") return "/staff-dashboard";
-  if (role === "baker") return "/staff-dashboard";
+  if (role === "baker") return "/baker-dashboard";
   return "/staff-dashboard"; // staff
 }
 
