@@ -86,47 +86,41 @@ export default function EmployeesPage() {
         </TabsList>
 
         <TabsContent value="employees" className="mt-4">
-          <Card>
-            <CardContent className="p-0">
-              {isLoading ? (
-                <div className="p-4 space-y-3">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-12 bg-muted rounded animate-pulse" />)}</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/40">
-                        <th className="text-left py-3 px-4 font-medium text-muted-foreground">Name</th>
-                        <th className="text-left py-3 px-4 font-medium text-muted-foreground">Role</th>
-                        <th className="text-left py-3 px-4 font-medium text-muted-foreground hidden md:table-cell">Phone</th>
-                        <th className="text-left py-3 px-4 font-medium text-muted-foreground hidden md:table-cell">Salary</th>
-                        <th className="text-left py-3 px-4 font-medium text-muted-foreground hidden md:table-cell">Joined</th>
-                        <th className="text-right py-3 px-4 font-medium text-muted-foreground">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {employees?.map((emp) => (
-                        <tr key={emp.id} className="border-b border-border last:border-0 hover:bg-muted/30">
-                          <td className="py-3 px-4 font-medium">{emp.name}</td>
-                          <td className="py-3 px-4">
-                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${ROLE_COLORS[emp.role]}`}>{emp.role}</span>
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground hidden md:table-cell">{emp.phone}</td>
-                          <td className="py-3 px-4 hidden md:table-cell">{emp.salary ? formatUGX(emp.salary) : "-"}</td>
-                          <td className="py-3 px-4 text-muted-foreground text-xs hidden md:table-cell">{emp.joinDate}</td>
-                          <td className="py-3 px-4 text-right">
-                            <button onClick={() => handleDelete(emp.id)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded">
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {(!employees || employees.length === 0) && <p className="text-sm text-muted-foreground text-center py-10">No employees yet</p>}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {isLoading ? (
+            <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />)}</div>
+          ) : (!employees || employees.length === 0) ? (
+            <p className="text-sm text-muted-foreground text-center py-10">No employees yet</p>
+          ) : (
+            <div className="space-y-3">
+              {employees.map((emp) => (
+                <Card key={emp.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-sm">{emp.name}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[emp.role]}`}>{emp.role}</span>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          {emp.phone && (
+                            <div><span className="font-medium text-foreground/70">Phone:</span> {emp.phone}</div>
+                          )}
+                          {emp.email && (
+                            <div className="col-span-2 truncate"><span className="font-medium text-foreground/70">Email:</span> {emp.email}</div>
+                          )}
+                          <div><span className="font-medium text-foreground/70">Salary:</span> {emp.salary ? formatUGX(emp.salary) : "—"}</div>
+                          <div><span className="font-medium text-foreground/70">Joined:</span> {emp.joinDate ?? "—"}</div>
+                        </div>
+                      </div>
+                      <button onClick={() => handleDelete(emp.id)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded shrink-0">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="attendance" className="mt-4">
