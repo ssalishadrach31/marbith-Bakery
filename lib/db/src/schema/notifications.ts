@@ -4,7 +4,7 @@ import { usersTable } from "./users";
 export const notificationsTable = pgTable("notifications", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
-  type: text("type", { enum: ["sale", "production", "salary", "expense", "order"] }).notNull(),
+  type: text("type", { enum: ["sale", "production", "salary", "expense", "order", "attendance"] }).notNull(),
   title: text("title").notNull(),
   message: text("message").notNull(),
   isRead: boolean("is_read").notNull().default(false),

@@ -149,7 +149,7 @@ export default function ProductionPage() {
                   <Label>Product</Label>
                   <Select value={productId} onValueChange={setProductId}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Select product" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-64 overflow-y-auto">
                       {activeProducts.map((p) => (
                         <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                       ))}

@@ -3,7 +3,7 @@ import { inArray, eq, and } from "drizzle-orm";
 import { logger } from "./logger";
 
 type NotifyPayload = {
-  type: "sale" | "production" | "salary" | "expense" | "order";
+  type: "sale" | "production" | "salary" | "expense" | "order" | "attendance";
   title: string;
   message: string;
   relatedId?: number;

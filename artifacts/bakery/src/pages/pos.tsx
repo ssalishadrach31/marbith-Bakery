@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useListProducts, useCreateSale, useGetSale, getListSalesQueryKey, getGetDailySalesSummaryQueryKey, getGetDashboardSummaryQueryKey, getListInventoryQueryKey } from "@workspace/api-client-react";
 import { queryClient } from "@/lib/query-client";
-import { formatUGX, formatDateTime } from "@/lib/auth";
+import { formatUGX, formatDateTime, getUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Plus, Minus, Printer } from "lucide-react";
+import { Trash2, Plus, Minus, Printer, Download, PenLine, RotateCcw, Check } from "lucide-react";
 
 interface CartItem { productId: number; name: string; price: number; quantity: number; }
 
@@ -20,21 +20,118 @@ const PAYMENT_METHODS = [
   { value: "airtel_money", label: "Airtel Money" },
 ];
 
+const SIG_KEY = "marbith_admin_signature";
+
+function SignaturePad({ onSave, onCancel }: { onSave: (dataUrl: string) => void; onCancel: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawing = useRef(false);
+
+  function getPos(e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if ("touches" in e) {
+      return {
+        x: (e.touches[0].clientX - rect.left) * scaleX,
+        y: (e.touches[0].clientY - rect.top) * scaleY,
+      };
+    }
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    };
+  }
+
+  function startDraw(e: React.MouseEvent | React.TouchEvent) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    e.preventDefault();
+    drawing.current = true;
+    const ctx = canvas.getContext("2d")!;
+    const pos = getPos(e, canvas);
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+  }
+
+  function draw(e: React.MouseEvent | React.TouchEvent) {
+    if (!drawing.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    e.preventDefault();
+    const ctx = canvas.getContext("2d")!;
+    ctx.strokeStyle = "#1a1a1a";
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    const pos = getPos(e, canvas);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+  }
+
+  function endDraw() { drawing.current = false; }
+
+  function clearCanvas() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.getContext("2d")!.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function save() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    onSave(canvas.toDataURL("image/png"));
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">Draw your signature below. It will appear at the bottom of all printed receipts.</p>
+      <div className="border-2 border-dashed border-border rounded-lg overflow-hidden bg-white">
+        <canvas
+          ref={canvasRef}
+          width={480}
+          height={140}
+          className="w-full touch-none cursor-crosshair"
+          onMouseDown={startDraw}
+          onMouseMove={draw}
+          onMouseUp={endDraw}
+          onMouseLeave={endDraw}
+          onTouchStart={startDraw}
+          onTouchMove={draw}
+          onTouchEnd={endDraw}
+        />
+      </div>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={clearCanvas} className="gap-1.5">
+          <RotateCcw className="h-3.5 w-3.5" /> Clear
+        </Button>
+        <Button size="sm" onClick={save} className="gap-1.5">
+          <Check className="h-3.5 w-3.5" /> Save Signature
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
 export default function POSPage() {
   const { data: products } = useListProducts();
   const createSale = useCreateSale();
   const { toast } = useToast();
+  const user = getUser();
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [transactionId, setTransactionId] = useState("");
   const [receiptSaleId, setReceiptSaleId] = useState<number | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [showSigPad, setShowSigPad] = useState(false);
+  const [savedSig, setSavedSig] = useState<string | null>(() => localStorage.getItem(SIG_KEY));
 
   const { data: receiptData } = useGetSale(receiptSaleId ?? 0, { query: { enabled: !!receiptSaleId, queryKey: ["sale", receiptSaleId] } });
 
   const activeProducts = products?.filter((p) => p.isActive && p.currentStock > 0) ?? [];
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const isAdmin = user?.role === "admin";
 
   function addToCart(product: typeof activeProducts[0]) {
     setCart((prev) => {
@@ -82,6 +179,78 @@ export default function POSPage() {
     } catch {
       toast({ title: "Error", description: "Failed to process sale", variant: "destructive" });
     }
+  }
+
+  function saveSig(dataUrl: string) {
+    localStorage.setItem(SIG_KEY, dataUrl);
+    setSavedSig(dataUrl);
+    setShowSigPad(false);
+    toast({ title: "Signature saved", description: "Your signature will appear on printed receipts" });
+  }
+
+  function clearSig() {
+    localStorage.removeItem(SIG_KEY);
+    setSavedSig(null);
+    toast({ title: "Signature cleared" });
+  }
+
+  function downloadReceipt() {
+    if (!receiptData) return;
+    const sig = localStorage.getItem(SIG_KEY);
+    const sigHtml = sig
+      ? `<div style="margin-top:24px;border-top:1px solid #ddd;padding-top:16px;">
+           <div style="font-size:11px;color:#666;margin-bottom:6px;">Authorised by:</div>
+           <img src="${sig}" style="max-width:180px;max-height:70px;" alt="Signature"/>
+         </div>`
+      : "";
+
+    const itemsHtml = receiptData.items.map((item) =>
+      `<div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+         <span>${item.productName} x${item.quantity}</span>
+         <span>${formatUGX(item.subtotal)}</span>
+       </div>`
+    ).join("");
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Receipt #${receiptData.receiptNumber}</title>
+  <style>
+    @page { size: 80mm auto; margin: 8mm; }
+    body { font-family: 'Courier New', monospace; font-size: 13px; color: #111; }
+    .center { text-align: center; }
+    .divider { border-top: 1px dashed #999; margin: 10px 0; }
+    .row { display: flex; justify-content: space-between; }
+    .total { font-weight: bold; font-size: 15px; }
+    .muted { color: #666; font-size: 11px; }
+    @media print { body { margin: 0; } }
+  </style>
+</head>
+<body>
+  <div class="center">
+    <div style="font-weight:bold;font-size:16px;">Marbith Bakery &amp; Investments</div>
+    <div class="muted">Kampala, Uganda</div>
+    <div class="muted" style="margin-top:4px;">Receipt #${receiptData.receiptNumber}</div>
+    <div class="muted">${formatDateTime(receiptData.soldAt)}</div>
+  </div>
+  <div class="divider"></div>
+  ${itemsHtml}
+  <div class="divider"></div>
+  <div class="row total"><span>TOTAL</span><span>${formatUGX(receiptData.totalAmount)}</span></div>
+  <div class="muted" style="margin-top:8px;">Payment: ${receiptData.paymentMethod.replace(/_/g, " ").toUpperCase()}${receiptData.transactionId ? ` | TX: ${receiptData.transactionId}` : ""}</div>
+  <div class="muted" style="margin-top:4px;">Served by: ${receiptData.soldBy ?? "—"}</div>
+  ${sigHtml}
+  <div class="divider"></div>
+  <div class="center muted">Thank you for your purchase!</div>
+  <script>window.onload=()=>{window.print();}<\/script>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank", "width=380,height=600");
+    if (!win) { toast({ title: "Pop-up blocked", description: "Please allow pop-ups for this site", variant: "destructive" }); return; }
+    win.document.write(html);
+    win.document.close();
   }
 
   return (
@@ -165,14 +334,57 @@ export default function POSPage() {
         </Card>
       </div>
 
+      {/* Signature management (admin only) */}
+      {isAdmin && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <PenLine className="h-4 w-4" />
+              Admin Signature for Receipts
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {showSigPad ? (
+              <SignaturePad onSave={saveSig} onCancel={() => setShowSigPad(false)} />
+            ) : savedSig ? (
+              <div className="flex items-center gap-4">
+                <div className="border rounded-lg bg-white p-2 flex-shrink-0">
+                  <img src={savedSig} alt="Admin signature" className="max-h-14 max-w-[160px]" />
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-sm text-muted-foreground">This signature will appear on all printed receipts.</p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowSigPad(true)} className="gap-1.5">
+                      <PenLine className="h-3.5 w-3.5" /> Re-draw
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={clearSig} className="text-destructive hover:text-destructive">Remove</Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-muted-foreground flex-1">No signature set. Add one to appear on printed receipts.</p>
+                <Button variant="outline" size="sm" onClick={() => setShowSigPad(true)} className="gap-1.5 shrink-0">
+                  <PenLine className="h-3.5 w-3.5" /> Draw Signature
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Receipt dialog */}
-      <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
+      <Dialog open={showReceipt} onOpenChange={(open) => { setShowReceipt(open); if (!open) setShowSigPad(false); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><Printer className="h-4 w-4" />Receipt</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="h-4 w-4" />Receipt
+            </DialogTitle>
+          </DialogHeader>
           {receiptData && (
             <div className="space-y-4">
               <div className="text-center border-b border-border pb-3">
-                <div className="font-bold text-lg">Marbith Bakery & Investments</div>
+                <div className="font-bold text-lg">Marbith Bakery &amp; Investments</div>
                 <div className="text-xs text-muted-foreground">Receipt #{receiptData.receiptNumber}</div>
                 <div className="text-xs text-muted-foreground">{formatDateTime(receiptData.soldAt)}</div>
               </div>
@@ -192,8 +404,26 @@ export default function POSPage() {
                 Payment: {receiptData.paymentMethod.replace(/_/g, " ").toUpperCase()}
                 {receiptData.transactionId && ` | TX: ${receiptData.transactionId}`}
               </div>
+
+              {/* Signature preview on receipt */}
+              {savedSig && (
+                <div className="border-t border-border pt-3">
+                  <div className="text-xs text-muted-foreground mb-1">Authorised by:</div>
+                  <img src={savedSig} alt="Signature" className="max-h-12 max-w-[140px]" />
+                </div>
+              )}
+
               <div className="text-center text-xs text-muted-foreground pt-2 border-t border-border">
                 Thank you for your purchase!
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1 gap-2" onClick={downloadReceipt}>
+                  <Download className="h-4 w-4" /> Download PDF
+                </Button>
+                <Button variant="ghost" className="flex-1" onClick={() => setShowReceipt(false)}>
+                  Close
+                </Button>
               </div>
             </div>
           )}

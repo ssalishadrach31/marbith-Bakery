@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { db, employeesTable, attendanceTable, deliveriesTable, salaryPaymentsTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 import { CreateEmployeeBody, GetEmployeeParams, UpdateEmployeeBody, UpdateEmployeeParams, DeleteEmployeeParams, CheckInBody, CheckOutParams, ListAttendanceQueryParams } from "@workspace/api-zod";
-import { notifyAllActiveUsers } from "../lib/notify";
+import { notifyAllActiveUsers, notifyByRoles } from "../lib/notify";
 
 const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
 function getUserName(req: any): string {
@@ -92,15 +92,26 @@ router.post("/attendance/check-in", async (req, res): Promise<void> => {
   const parsed = CheckInBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const today = new Date().toISOString().split("T")[0];
+  const checkInTime = new Date();
+  const today = checkInTime.toISOString().split("T")[0];
   const [record] = await db.insert(attendanceTable).values({
     employeeId: parsed.data.employeeId,
-    checkIn: new Date(),
+    checkIn: checkInTime,
     date: today,
   }).returning();
 
   const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, parsed.data.employeeId));
-  res.status(201).json({ ...record, employeeName: emp?.name ?? "Unknown", checkIn: record.checkIn.toISOString(), checkOut: null });
+  const empName = emp?.name ?? "Unknown";
+  const timeStr = checkInTime.toLocaleTimeString("en-UG", { hour: "2-digit", minute: "2-digit", hour12: true });
+
+  notifyByRoles(["admin"], {
+    type: "attendance",
+    title: "Employee Checked In",
+    message: `${empName} checked in at ${timeStr}`,
+    relatedId: record.id,
+  });
+
+  res.status(201).json({ ...record, employeeName: empName, checkIn: record.checkIn.toISOString(), checkOut: null });
 });
 
 router.put("/attendance/:id/check-out", async (req, res): Promise<void> => {
