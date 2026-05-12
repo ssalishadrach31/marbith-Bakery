@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useLogin } from "@workspace/api-client-react";
 import { setToken, setUser } from "@/lib/auth";
+import { getRoleHome } from "@/components/layout";
 import { queryClient } from "@/lib/query-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,10 +23,7 @@ export default function LoginPage() {
       setToken(result.token);
       setUser(result.user as any);
       queryClient.clear();
-      const role = result.user.role;
-      if (role === "admin") navigate("/dashboard");
-      else if (role === "rider") navigate("/rider-deliveries");
-      else navigate("/pos");
+      navigate(getRoleHome(result.user.role));
     } catch {
       toast({ title: "Login failed", description: "Invalid username or password", variant: "destructive" });
     }
@@ -43,14 +41,16 @@ export default function LoginPage() {
           <h2 className="text-lg font-semibold text-foreground mb-5">Sign In</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="username" className="text-sm font-medium">Username</Label>
+              <Label htmlFor="username" className="text-sm font-medium">Email</Label>
               <Input
                 id="username"
+                type="email"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter username"
+                placeholder="name@marbithbakery.com"
                 className="mt-1"
                 required
+                autoComplete="username"
               />
             </div>
             <div>
@@ -63,19 +63,13 @@ export default function LoginPage() {
                 placeholder="Enter password"
                 className="mt-1"
                 required
+                autoComplete="current-password"
               />
             </div>
             <Button type="submit" className="w-full mt-2" disabled={loginMutation.isPending}>
               {loginMutation.isPending ? "Signing in..." : "Sign In"}
             </Button>
           </form>
-          <div className="mt-5 pt-4 border-t border-border">
-            <p className="text-xs text-muted-foreground text-center">Login credentials</p>
-            <div className="mt-2 space-y-1 text-xs text-muted-foreground text-center">
-              <div>Staff: <span className="font-mono">cashier1 / staff123</span></div>
-              <div>Rider: <span className="font-mono">rider1 / rider123</span></div>
-            </div>
-          </div>
         </div>
         <p className="text-center text-xs text-sidebar-foreground/40 mt-4">
           <a href="/order" className="underline underline-offset-2 hover:text-sidebar-foreground/60">Place an online order</a>

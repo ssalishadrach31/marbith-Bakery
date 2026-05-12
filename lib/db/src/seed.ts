@@ -61,7 +61,7 @@ async function seed() {
         isActive: true,
       },
       {
-        username: "cashier1",
+        username: "jane.nakato@marbithbakery.com",
         password: "staff123",
         name: "Jane Nakato",
         role: "staff",
@@ -69,7 +69,7 @@ async function seed() {
         isActive: true,
       },
       {
-        username: "rider1",
+        username: "ali.mukasa@marbithbakery.com",
         password: "rider123",
         name: "Ali Mukasa",
         role: "rider",

@@ -359,14 +359,25 @@ export default function UsersPage() {
               </Select>
             </div>
             <div>
-              <Label>Username <span className="text-muted-foreground text-xs">(used to sign in)</span></Label>
-              <Input
-                value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/\s/g, "") })}
-                placeholder="e.g. sarah.nakato"
-                className="mt-1 font-mono"
-                required
-              />
+              <Label>Email / Username <span className="text-muted-foreground text-xs">(used to sign in)</span></Label>
+              <div className="flex mt-1 gap-0">
+                <Input
+                  value={form.username.replace("@marbithbakery.com", "")}
+                  onChange={(e) => {
+                    const raw = e.target.value.toLowerCase().replace(/\s/g, "");
+                    setForm({ ...form, username: raw ? `${raw}@marbithbakery.com` : "" });
+                  }}
+                  placeholder="firstname.lastname"
+                  className="rounded-r-none font-mono z-10"
+                  required
+                />
+                <span className="flex items-center px-3 bg-muted border border-l-0 border-input rounded-r-md text-xs text-muted-foreground whitespace-nowrap">
+                  @marbithbakery.com
+                </span>
+              </div>
+              {form.username && (
+                <p className="text-xs text-muted-foreground mt-1 pl-1">Login: <span className="font-mono text-foreground">{form.username}</span></p>
+              )}
             </div>
             <div>
               <Label>Password</Label>
