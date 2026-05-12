@@ -575,8 +575,9 @@ function ShopsPanel() {
 
 // ── BRANDING PANEL ───────────────────────────────────────────────────────────
 const BRAND_KEY = "marbith_branding";
+const FONT_DEFAULT_SENTINEL = "__default__";
 const FONTS = [
-  { value: "", label: "Default (system-ui)" },
+  { value: FONT_DEFAULT_SENTINEL, label: "Default (system-ui)" },
   { value: "'Georgia', serif", label: "Georgia — elegant serif" },
   { value: "Verdana, sans-serif", label: "Verdana — clean & readable" },
   { value: "'Trebuchet MS', sans-serif", label: "Trebuchet MS — modern" },
@@ -622,13 +623,22 @@ function BrandingPanel() {
           </div>
           <div>
             <Label className="text-xs text-muted-foreground">Font Family</Label>
-            <Select value={b.font ?? ""} onValueChange={(v) => setB({ ...b, font: v })}>
+            <Select
+              value={b.font || FONT_DEFAULT_SENTINEL}
+              onValueChange={(v) => setB({ ...b, font: v === FONT_DEFAULT_SENTINEL ? "" : v })}
+            >
               <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Default (system-ui)" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {FONTS.map((f) => (
-                  <SelectItem key={f.value} value={f.value} style={{ fontFamily: f.value || undefined }}>{f.label}</SelectItem>
+                  <SelectItem
+                    key={f.value}
+                    value={f.value}
+                    style={{ fontFamily: f.value === FONT_DEFAULT_SENTINEL ? undefined : f.value }}
+                  >
+                    {f.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
