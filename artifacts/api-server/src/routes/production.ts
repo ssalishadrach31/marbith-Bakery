@@ -196,10 +196,20 @@ router.post("/production", async (req, res): Promise<void> => {
   const productName = product?.name ?? "Unknown";
 
   const typeLabel = entryType === "leftover" ? "yesterday's leftover added" : entryType === "closing" ? "evening closing stock set" : "new batch baked";
-  notifyByRoles(["admin", "staff", "baker"], {
+  const recorder = getUserName(req);
+
+  // Notify admins to confirm production
+  notifyByRoles(["admin"], {
+    type: "production",
+    title: "Production Recorded — Please Confirm",
+    message: `${recorder} recorded ${quantity} × ${productName} (${typeLabel}). Open the Shift Dashboard to verify and confirm the batch.`,
+    relatedId: record.id,
+  });
+  // Inform staff/bakers that the update went through
+  notifyByRoles(["staff", "baker"], {
     type: "production",
     title: "Stock Updated",
-    message: `${getUserName(req)}: ${quantity} × ${productName} — ${typeLabel}`,
+    message: `${recorder}: ${quantity} × ${productName} — ${typeLabel}`,
     relatedId: record.id,
   });
 

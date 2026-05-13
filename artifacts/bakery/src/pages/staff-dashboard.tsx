@@ -409,13 +409,53 @@ export default function StaffDashboardPage() {
     staleTime: 30_000,
   });
 
+  // New-day-request: non-admins submit, admins approve
+  const { data: newDayRequest, refetch: refetchNewDayRequest } = useQuery<any>({
+    queryKey: ["new-day-request", todayStr],
+    queryFn: () => apiFetch(`/daily-counts/new-day-request?date=${todayStr}`),
+    refetchInterval: 30_000,
+  });
+
+  const requestNewDayMutation = useMutation({
+    mutationFn: () => apiFetch("/daily-counts/new-day-request", {
+      method: "POST",
+      body: JSON.stringify({ fromDate: yesterdayStr, toDate: todayStr }),
+    }),
+    onSuccess: () => {
+      refetchNewDayRequest();
+      setShowNewDayDialog(false);
+      toast({ title: "Request Sent!", description: "Your request to start a new day has been sent to admin for approval." });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const approveNewDayMutation = useMutation({
+    mutationFn: ({ id, action }: { id: number; action: "approve" | "reject" }) =>
+      apiFetch(`/daily-counts/new-day-request/${id}`, { method: "PATCH", body: JSON.stringify({ action }) }),
+    onSuccess: (data: any) => {
+      refetchNewDayRequest();
+      qc.invalidateQueries({ queryKey: ["daily-counts", todayStr] });
+      qc.invalidateQueries({ queryKey: ["staff-dashboard"] });
+      if (data.rejected) {
+        toast({ title: "Request Rejected", description: "The new day request has been rejected." });
+      } else {
+        toast({ title: "New Day Approved!", description: data.message });
+      }
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
   const todayClosing = (shiftClosings ?? []).find((c: any) => c.shiftDate === todayStr);
   const yesterdayClosing = (shiftClosings ?? []).find((c: any) => c.shiftDate === yesterdayStr && c.status === "approved");
   const isAdmin = role === "admin";
   const isTodayClosed = todayClosing?.status === "approved";
   const isPendingClose = todayClosing?.status === "pending";
   const todayHasOpenings = (dailyCounts ?? []).some((c: any) => c.countType === "opening");
-  const showNewDayPrompt = !!yesterdayClosing && !todayHasOpenings && !isTodayClosed && !isPendingClose;
+  const hasPendingNewDayRequest = newDayRequest?.status === "pending";
+  const hasApprovedNewDayRequest = newDayRequest?.status === "approved";
+  // Prompt shows when yesterday is approved, today has no openings, and day is not yet closed
+  // For non-admins: suppress once they've submitted a request (show the "pending" state instead)
+  const showNewDayPrompt = !!yesterdayClosing && !todayHasOpenings && !isTodayClosed && !isPendingClose && !hasApprovedNewDayRequest && (isAdmin || !hasPendingNewDayRequest);
 
   const closeDayMutation = useMutation({
     mutationFn: () => apiFetch("/shift-closings", { method: "POST", body: JSON.stringify({ shiftDate: todayStr }) }),
@@ -644,11 +684,56 @@ export default function StaffDashboardPage() {
           <Sunrise className="h-5 w-5 text-blue-600 shrink-0" />
           <div className="flex-1 min-w-0">
             <span className="font-semibold text-sm text-blue-900">Yesterday's shift was approved.</span>
-            <span className="text-xs text-blue-700 ml-2">Carry forward yesterday's closing stock as today's opening counts.</span>
+            <span className="text-xs text-blue-700 ml-2">
+              {isAdmin ? "Carry forward yesterday's closing stock as today's opening counts." : "Ask admin to open today's shift by carrying forward yesterday's closing stock."}
+            </span>
           </div>
           <Button size="sm" onClick={() => setShowNewDayDialog(true)} className="bg-blue-600 hover:bg-blue-700 text-white shrink-0">
-            <Sunrise className="h-4 w-4 mr-1.5" /> Start New Day
+            <Sunrise className="h-4 w-4 mr-1.5" /> {isAdmin ? "Start New Day" : "Request New Day"}
           </Button>
+        </div>
+      )}
+
+      {/* Non-admin: pending new day request — waiting for admin approval */}
+      {!isAdmin && hasPendingNewDayRequest && !todayHasOpenings && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-300 bg-amber-50">
+          <Sunrise className="h-5 w-5 text-amber-600 shrink-0 animate-pulse" />
+          <div className="flex-1 min-w-0">
+            <span className="font-semibold text-sm text-amber-900">New Day Request Sent</span>
+            <span className="text-xs text-amber-700 ml-2">Waiting for admin to approve and open today's shift. You'll be notified once it's confirmed.</span>
+          </div>
+        </div>
+      )}
+
+      {/* Admin: pending new day request from staff — approve or reject */}
+      {isAdmin && hasPendingNewDayRequest && !todayHasOpenings && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-indigo-300 bg-indigo-50">
+          <Sunrise className="h-5 w-5 text-indigo-600 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="font-semibold text-sm text-indigo-900">New Day Request — Admin Action Required</span>
+            <span className="text-xs text-indigo-700 ml-2">
+              {newDayRequest?.requested_by} is requesting to carry forward closing stock from {newDayRequest?.from_date} as today's opening.
+            </span>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button
+              size="sm"
+              onClick={() => approveNewDayMutation.mutate({ id: newDayRequest.id, action: "approve" })}
+              disabled={approveNewDayMutation.isPending}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              Approve
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => approveNewDayMutation.mutate({ id: newDayRequest.id, action: "reject" })}
+              disabled={approveNewDayMutation.isPending}
+              className="border-red-300 text-red-700 hover:bg-red-50"
+            >
+              Reject
+            </Button>
+          </div>
         </div>
       )}
 
@@ -702,20 +787,37 @@ export default function StaffDashboardPage() {
             })()}
 
             <div className="flex gap-2 flex-wrap">
-              <Button
-                onClick={() => carryForwardMutation.mutate()}
-                disabled={carryForwardMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <Sunrise className="h-4 w-4 mr-1.5" />
-                {carryForwardMutation.isPending ? "Starting…" : "Set as Today's Opening Stock"}
-              </Button>
+              {isAdmin ? (
+                <Button
+                  onClick={() => carryForwardMutation.mutate()}
+                  disabled={carryForwardMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Sunrise className="h-4 w-4 mr-1.5" />
+                  {carryForwardMutation.isPending ? "Starting…" : "Set as Today's Opening Stock"}
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => requestNewDayMutation.mutate()}
+                  disabled={requestNewDayMutation.isPending || hasPendingNewDayRequest}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Sunrise className="h-4 w-4 mr-1.5" />
+                  {requestNewDayMutation.isPending
+                    ? "Sending Request…"
+                    : hasPendingNewDayRequest
+                    ? "Request Already Sent"
+                    : "Request New Day from Admin"}
+                </Button>
+              )}
               <Button variant="outline" onClick={() => setShowNewDayDialog(false)}>
-                Enter Manually
+                {isAdmin ? "Enter Manually" : "Cancel"}
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              You can still adjust individual counts manually after carrying forward.
+              {isAdmin
+                ? "You can still adjust individual counts manually after carrying forward."
+                : "An admin will be notified and must approve before today's opening stock is set."}
             </p>
           </CardContent>
         </Card>
