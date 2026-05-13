@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Eye, EyeOff, Trash2, KeyRound, UserPlus, Copy, CheckCircle,
-  Clock, CheckCircle2, XCircle, ShieldAlert, Bell,
+  Clock, CheckCircle2, XCircle, ShieldAlert, Bell, Pencil,
 } from "lucide-react";
 
 const DEVELOPER_USER_ID = 4;
@@ -166,6 +166,34 @@ export default function UsersPage() {
   const [reviewNotes, setReviewNotes] = useState("");
 
   const [tab, setTab] = useState<"users" | "requests">("users");
+
+  const [editModal, setEditModal] = useState<SystemUser | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", role: "cashier", jobTitle: "", username: "" });
+
+  const editMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: object }) =>
+      apiCall(`/users/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+      toast({ title: "User updated successfully" });
+      setEditModal(null);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  function openEdit(u: SystemUser) {
+    setEditForm({ name: u.name, role: u.role, jobTitle: u.jobTitle ?? "", username: u.username });
+    setEditModal(u);
+  }
+
+  function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editModal) return;
+    editMutation.mutate({
+      id: editModal.id,
+      data: { name: editForm.name, role: editForm.role, jobTitle: editForm.jobTitle || null, username: editForm.username },
+    });
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -323,6 +351,13 @@ export default function UsersPage() {
                               </span>
                             ) : (
                               <>
+                                <button
+                                  onClick={() => openEdit(u)}
+                                  className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                  title="Edit user details"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
                                 {!isMe && (
                                   <button
                                     onClick={() => { setResetModal({ id: u.id, name: u.name }); setNewPwd(""); }}
@@ -786,6 +821,79 @@ export default function UsersPage() {
               View My Requests
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User */}
+      <Dialog open={!!editModal} onOpenChange={(v) => { if (!v) setEditModal(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-4 w-4" /> Edit User — {editModal?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEdit} className="space-y-4">
+            <div>
+              <Label>Full Name</Label>
+              <Input
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                placeholder="e.g. Sarah Nakato"
+                className="mt-1"
+                required
+              />
+            </div>
+            <div>
+              <Label>Job Title <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Input
+                value={editForm.jobTitle}
+                onChange={(e) => setEditForm({ ...editForm, jobTitle: e.target.value })}
+                placeholder="e.g. Samosa Chef"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>System Role</Label>
+              <Select value={editForm.role} onValueChange={(v) => setEditForm({ ...editForm, role: v })}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ROLE_OPTIONS.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>
+                      <span className="font-medium">{r.label}</span>
+                      <span className="text-muted-foreground ml-2 text-xs">— {r.desc}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Username</Label>
+              <div className="flex mt-1 gap-0">
+                <Input
+                  value={editForm.username.replace("@marbithbakery.com", "")}
+                  onChange={(e) => {
+                    const raw = e.target.value.toLowerCase().replace(/\s/g, "");
+                    setEditForm({ ...editForm, username: raw ? `${raw}@marbithbakery.com` : "" });
+                  }}
+                  placeholder="firstname.lastname"
+                  className="rounded-r-none font-mono z-10"
+                  required
+                />
+                <span className="flex items-center px-3 bg-muted border border-l-0 border-input rounded-r-md text-xs text-muted-foreground whitespace-nowrap">
+                  @marbithbakery.com
+                </span>
+              </div>
+              {editForm.username && (
+                <p className="text-xs text-muted-foreground mt-1 pl-1">Login: <span className="font-mono text-foreground">{editForm.username}</span></p>
+              )}
+            </div>
+            <div className="flex gap-2 justify-end pt-1">
+              <Button type="button" variant="outline" onClick={() => setEditModal(null)}>Cancel</Button>
+              <Button type="submit" disabled={editMutation.isPending}>
+                {editMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 

@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { Trash2, UserCheck, UserX, Pencil } from "lucide-react";
@@ -32,7 +33,7 @@ const ROLE_COLORS: Record<string, string> = {
   rider: "bg-green-100 text-green-700",
 };
 
-const EMPTY_FORM = { name: "", role: "cashier" as typeof ROLES[number], phone: "", email: "", salary: "", joinDate: new Date().toISOString().split("T")[0] };
+const EMPTY_FORM = { name: "", role: "cashier" as typeof ROLES[number], phone: "", email: "", salary: "", joinDate: new Date().toISOString().split("T")[0], isActive: true };
 
 export default function EmployeesPage() {
   const { data: employees, isLoading } = useListEmployees({ query: { queryKey: getListEmployeesQueryKey() } });
@@ -85,6 +86,7 @@ export default function EmployeesPage() {
       email: emp.email ?? "",
       salary: emp.salary != null ? String(emp.salary) : "",
       joinDate: emp.joinDate ?? new Date().toISOString().split("T")[0],
+      isActive: emp.isActive ?? true,
     });
     setEditingId(emp.id);
   }
@@ -296,6 +298,16 @@ export default function EmployeesPage() {
             <div>
               <Label>Join Date</Label>
               <Input type="date" value={editForm.joinDate} onChange={(e) => setEditForm({ ...editForm, joinDate: e.target.value })} className="mt-1" />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+              <div>
+                <p className="text-sm font-medium">Active Employee</p>
+                <p className="text-xs text-muted-foreground">Inactive employees are hidden from daily operations</p>
+              </div>
+              <Switch
+                checked={editForm.isActive}
+                onCheckedChange={(v) => setEditForm({ ...editForm, isActive: v })}
+              />
             </div>
             <div className="flex gap-2 justify-end pt-2">
               <Button type="button" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>

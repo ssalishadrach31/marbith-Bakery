@@ -131,6 +131,39 @@ router.patch("/users/:id/job-title", async (req, res): Promise<void> => {
   res.json(user);
 });
 
+router.patch("/users/:id", async (req, res): Promise<void> => {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+
+  const id = parseInt(req.params.id, 10);
+  const { name, role, jobTitle, username } = req.body;
+
+  if (!name || !role) {
+    res.status(400).json({ error: "name and role are required" });
+    return;
+  }
+
+  if (!VALID_ROLES.includes(role)) {
+    res.status(400).json({ error: `role must be one of: ${VALID_ROLES.join(", ")}` });
+    return;
+  }
+
+  const updates: Partial<typeof usersTable.$inferInsert> = { name, role, jobTitle: jobTitle || null };
+
+  if (username) {
+    const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
+    if (existing && existing.id !== id) {
+      res.status(409).json({ error: "Username already taken" });
+      return;
+    }
+    updates.username = username;
+  }
+
+  const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, id)).returning(userFields);
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  res.json(user);
+});
+
 router.delete("/users/:id", async (req, res): Promise<void> => {
   const admin = requireAdmin(req, res);
   if (!admin) return;
