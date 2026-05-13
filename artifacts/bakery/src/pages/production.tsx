@@ -47,7 +47,7 @@ const todayStr = new Date().toISOString().split("T")[0];
 
 async function apiFetch(path: string, options?: RequestInit) {
   const token = getToken();
-  const res = await fetch(`${import.meta.env.VITE_API_URL}/api${path}`, {
+  const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",

@@ -12,7 +12,7 @@ import {
 
 async function apiFetch(path: string) {
   const token = getToken();
-  const res = await fetch(`${import.meta.env.VITE_API_URL}/api${path}`, {
+  const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api${path}`, {
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error ?? "Request failed"); }
