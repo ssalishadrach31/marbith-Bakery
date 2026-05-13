@@ -5,9 +5,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Printer, TrendingUp, ShoppingCart, Package, CheckCircle2 } from "lucide-react";
 
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
+
 async function apiFetch(path: string) {
   const token = getToken();
-  const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error ?? "Request failed"); }

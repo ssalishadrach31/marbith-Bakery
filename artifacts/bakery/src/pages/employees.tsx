@@ -15,9 +15,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { Trash2, UserCheck, UserX, Pencil } from "lucide-react";
 
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
+
 async function apiFetch(path: string, options?: RequestInit) {
   const token = getToken();
-  const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     ...options,
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options?.headers },
   });

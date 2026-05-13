@@ -9,9 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Factory, Package, ShoppingCart, Truck, Users, AlertTriangle, TrendingUp, DollarSign, ArrowRight, Phone, MapPin, CreditCard, CheckCircle2, Clock, MessageSquare, Bell, X } from "lucide-react";
 
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
+
 async function apiFetch(path: string, options?: RequestInit) {
   const token = getToken();
-  const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     ...options,
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options?.headers },
   });
