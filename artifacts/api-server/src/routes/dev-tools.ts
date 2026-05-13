@@ -15,7 +15,16 @@ function getTokenPayload(req: any): { userId: number; role: string; name: string
   try { return jwt.verify(h.slice(7), JWT_SECRET) as any; } catch { return null; }
 }
 
-async function devAdminOnly(req: any, res: any, next: any) {
+// Any admin can view stats and run resets
+function adminOnly(req: any, res: any, next: any) {
+  const payload = getTokenPayload(req);
+  if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (payload.role !== "admin") { res.status(403).json({ error: "Admin only" }); return; }
+  next();
+}
+
+// Only Shadrach (system developer) can access sensitive endpoints
+async function developerOnly(req: any, res: any, next: any) {
   const payload = getTokenPayload(req);
   if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
   if (payload.role !== "admin") { res.status(403).json({ error: "Admin only" }); return; }
@@ -32,8 +41,8 @@ async function devAdminOnly(req: any, res: any, next: any) {
   next();
 }
 
-// GET /api/dev/stats
-router.get("/dev/stats", devAdminOnly, async (req, res): Promise<void> => {
+// GET /api/dev/stats — any admin
+router.get("/dev/stats", adminOnly, async (req, res): Promise<void> => {
   const tables = [
     "production", "sales", "sale_items", "shop_receipts",
     "daily_counts", "orders", "order_items", "deliveries",
@@ -56,7 +65,7 @@ router.get("/dev/stats", devAdminOnly, async (req, res): Promise<void> => {
 });
 
 // POST /api/dev/reset
-router.post("/dev/reset", devAdminOnly, async (req, res): Promise<void> => {
+router.post("/dev/reset", adminOnly, async (req, res): Promise<void> => {
   const { scope } = req.body as { scope: string };
 
   const validScopes = ["all", "production", "sales", "counts", "orders", "expenses", "attendance", "payments", "notifications", "inventory"];
@@ -116,7 +125,7 @@ router.post("/dev/reset", devAdminOnly, async (req, res): Promise<void> => {
 });
 
 // GET /api/dev/users-passwords — Shadrach only: list all users with their passwords
-router.get("/dev/users-passwords", devAdminOnly, async (_req, res): Promise<void> => {
+router.get("/dev/users-passwords", developerOnly, async (_req, res): Promise<void> => {
   const users = await db.select({
     id: usersTable.id,
     username: usersTable.username,
@@ -130,7 +139,7 @@ router.get("/dev/users-passwords", devAdminOnly, async (_req, res): Promise<void
 });
 
 // GET /api/dev/shops — list all shops
-router.get("/dev/shops", devAdminOnly, async (_req, res): Promise<void> => {
+router.get("/dev/shops", developerOnly, async (_req, res): Promise<void> => {
   const shops = await db
     .select()
     .from(shopsTable)
@@ -150,7 +159,7 @@ router.get("/dev/shops", devAdminOnly, async (_req, res): Promise<void> => {
 });
 
 // POST /api/dev/shops — create a new shop
-router.post("/dev/shops", devAdminOnly, async (req, res): Promise<void> => {
+router.post("/dev/shops", developerOnly, async (req, res): Promise<void> => {
   const { name, location, address, phone } = req.body as {
     name: string; location: string; address?: string; phone?: string;
   };
@@ -170,7 +179,7 @@ router.post("/dev/shops", devAdminOnly, async (req, res): Promise<void> => {
 });
 
 // PATCH /api/dev/shops/:id/toggle — activate / deactivate
-router.patch("/dev/shops/:id/toggle", devAdminOnly, async (req, res): Promise<void> => {
+router.patch("/dev/shops/:id/toggle", developerOnly, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const [existing] = await db.select().from(shopsTable).where(eq(shopsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Shop not found" }); return; }
@@ -184,7 +193,7 @@ router.patch("/dev/shops/:id/toggle", devAdminOnly, async (req, res): Promise<vo
 });
 
 // PATCH /api/dev/employees/:id/shop — assign employee to a shop
-router.patch("/dev/employees/:id/shop", devAdminOnly, async (req, res): Promise<void> => {
+router.patch("/dev/employees/:id/shop", developerOnly, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const { shopId } = req.body as { shopId: number | null };
 
