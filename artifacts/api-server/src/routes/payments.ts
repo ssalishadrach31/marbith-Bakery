@@ -23,6 +23,24 @@ router.post("/payments", async (req, res): Promise<void> => {
   res.status(201).json({ ...payment, recordedAt: payment.recordedAt.toISOString() });
 });
 
+// PATCH /api/payments/:id — correct a payment record
+router.patch("/payments/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const [existing] = await db.select().from(paymentsTable).where(eq(paymentsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Payment not found" }); return; }
+
+  const { transactionId, network, amount, phoneNumber, notes } = req.body;
+  const [updated] = await db.update(paymentsTable).set({
+    transactionId: transactionId ?? existing.transactionId,
+    network: (network ?? existing.network) as any,
+    amount: amount !== undefined ? Number(amount) : existing.amount,
+    phoneNumber: phoneNumber ?? existing.phoneNumber,
+    notes: notes ?? existing.notes,
+  }).where(eq(paymentsTable.id, id)).returning();
+
+  res.json({ ...updated, recordedAt: updated.recordedAt.toISOString() });
+});
+
 router.get("/payments/revenue-breakdown", async (req, res): Promise<void> => {
   const qp = GetRevenueBreakdownQueryParams.safeParse(req.query);
   const date = (qp.success && qp.data.date) ? qp.data.date as string : new Date().toISOString().split("T")[0];

@@ -122,6 +122,37 @@ router.post("/expenses", async (req, res): Promise<void> => {
   res.status(201).json(record);
 });
 
+// PATCH /api/expenses/:id — edit content of a non-finalised expense
+router.patch("/expenses/:id", async (req, res): Promise<void> => {
+  const user = getUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const id = parseInt(req.params.id, 10);
+  const [expense] = await db.select().from(expensesTable).where(eq(expensesTable.id, id));
+  if (!expense) { res.status(404).json({ error: "Expense not found" }); return; }
+
+  if (!["pending", "awaiting_second"].includes(expense.status)) {
+    res.status(400).json({ error: "Cannot edit a finalised expense" });
+    return;
+  }
+
+  // Non-admins can only edit their own pending expenses
+  if (user.role !== "admin" && (expense.submittedBy !== user.name || expense.status !== "pending")) {
+    res.status(403).json({ error: "You can only edit your own pending expenses" });
+    return;
+  }
+
+  const { amount, description, category, expenseDate } = req.body;
+  const [updated] = await db.update(expensesTable).set({
+    amount: amount !== undefined ? Number(amount) : expense.amount,
+    description: description ?? expense.description,
+    category: category ?? expense.category,
+    expenseDate: expenseDate ?? expense.expenseDate,
+  }).where(eq(expensesTable.id, id)).returning();
+
+  res.json(updated);
+});
+
 // PATCH /api/expenses/:id/review — dual-approval flow
 // First admin: pending → awaiting_second
 // Second admin (different person): awaiting_second → approved

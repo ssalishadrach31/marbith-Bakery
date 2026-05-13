@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useListProducts, useCreateProduction, getListProductionQueryKey, getGetTodayProductionSummaryQueryKey, getListInventoryQueryKey, useListProduction } from "@workspace/api-client-react";
-import { formatDateTime, getUser } from "@/lib/auth";
+import { formatDateTime, getToken, getUser } from "@/lib/auth";
 import { queryClient } from "@/lib/query-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Sunrise, ChefHat, Moon, History } from "lucide-react";
+import { Sunrise, ChefHat, Moon, History, Pencil } from "lucide-react";
 
 type EntryType = "leftover" | "new_batch" | "closing";
 
@@ -43,6 +45,22 @@ const ENTRY_TYPES: { type: EntryType; label: string; desc: string; icon: React.R
 
 const todayStr = new Date().toISOString().split("T")[0];
 
+async function apiFetch(path: string, options?: RequestInit) {
+  const token = getToken();
+  const res = await fetch(`/api${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error ?? "Request failed"); }
+  return res.json();
+}
+
+type EditState = { id: number; entryType: EntryType; quantity: string; notes: string };
+
 export default function ProductionPage() {
   const { data: products } = useListProducts();
   const { data: records, isLoading } = useListProduction(
@@ -56,6 +74,20 @@ export default function ProductionPage() {
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [notes, setNotes] = useState("");
+  const [editRecord, setEditRecord] = useState<EditState | null>(null);
+
+  const editMutation = useMutation({
+    mutationFn: ({ id, ...body }: EditState & { id: number }) =>
+      apiFetch(`/production/${id}`, { method: "PATCH", body: JSON.stringify({ quantity: parseInt(body.quantity), entryType: body.entryType, notes: body.notes || null }) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: getListProductionQueryKey({ date: todayStr }) });
+      queryClient.invalidateQueries({ queryKey: getGetTodayProductionSummaryQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListInventoryQueryKey() });
+      toast({ title: "Entry updated", description: "Production record and inventory have been corrected." });
+      setEditRecord(null);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
 
   const activeProducts = products?.filter((p) => p.isActive) ?? [];
 
@@ -85,7 +117,6 @@ export default function ProductionPage() {
     }
   }
 
-  // Build today's per-product summary from raw log
   const summaryMap = new Map<number, { name: string; leftover: number; newBatch: number; closing: number }>();
   for (const r of records ?? []) {
     if (!summaryMap.has(r.productId))
@@ -97,6 +128,8 @@ export default function ProductionPage() {
   }
 
   const getMeta = (type: string) => ENTRY_TYPES.find((t) => t.type === type);
+  const user = getUser();
+  const canEdit = user?.role === "admin" || user?.role === "staff" || user?.role === "baker";
 
   return (
     <div className="space-y-6">
@@ -244,6 +277,15 @@ export default function ProductionPage() {
                     <span className="text-sm font-bold text-primary">{r.quantity}</span>
                     <span className="text-xs text-muted-foreground hidden sm:block">{r.recordedBy}</span>
                     <span className="text-xs text-muted-foreground hidden md:block">{formatDateTime(r.producedAt)}</span>
+                    {canEdit && (
+                      <button
+                        onClick={() => setEditRecord({ id: r.id, entryType: r.entryType as EntryType, quantity: String(r.quantity), notes: r.notes ?? "" })}
+                        className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                        title="Edit this entry"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -253,6 +295,56 @@ export default function ProductionPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit dialog */}
+      <Dialog open={!!editRecord} onOpenChange={(open) => { if (!open) setEditRecord(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Production Entry</DialogTitle></DialogHeader>
+          {editRecord && (
+            <form
+              onSubmit={(e) => { e.preventDefault(); editMutation.mutate(editRecord); }}
+              className="space-y-4"
+            >
+              <div>
+                <Label>Entry Type</Label>
+                <Select value={editRecord.entryType} onValueChange={(v) => setEditRecord({ ...editRecord, entryType: v as EntryType })}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ENTRY_TYPES.map((t) => <SelectItem key={t.type} value={t.type}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>{editRecord.entryType === "closing" ? "Count remaining" : "Quantity"}</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={editRecord.quantity}
+                  onChange={(e) => setEditRecord({ ...editRecord, quantity: e.target.value })}
+                  className="mt-1"
+                  required
+                />
+              </div>
+              <div>
+                <Label>Notes (optional)</Label>
+                <Textarea
+                  value={editRecord.notes}
+                  onChange={(e) => setEditRecord({ ...editRecord, notes: e.target.value })}
+                  className="mt-1"
+                  rows={2}
+                  placeholder="Reason for correction..."
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={() => setEditRecord(null)}>Cancel</Button>
+                <Button type="submit" disabled={editMutation.isPending}>
+                  {editMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

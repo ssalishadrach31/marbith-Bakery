@@ -216,4 +216,54 @@ router.post("/production", async (req, res): Promise<void> => {
   res.status(201).json({ ...record, productName });
 });
 
+// PATCH /api/production/:id — correct a production entry (quantity, type, or notes)
+router.patch("/production/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [existing] = await db.select().from(productionTable).where(eq(productionTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Production entry not found" }); return; }
+
+  const newQty = req.body.quantity !== undefined ? parseInt(req.body.quantity, 10) : existing.quantity;
+  const newType: string = req.body.entryType ?? existing.entryType;
+  const newNotes: string | null = req.body.notes !== undefined ? (req.body.notes || null) : existing.notes;
+
+  if (isNaN(newQty) || newQty < 0) { res.status(400).json({ error: "quantity must be non-negative" }); return; }
+
+  const [updated] = await db.update(productionTable)
+    .set({ quantity: newQty, entryType: newType as any, notes: newNotes })
+    .where(eq(productionTable.id, id))
+    .returning();
+
+  // Adjust inventory to reflect the change
+  const [inv] = await db.select().from(inventoryTable).where(eq(inventoryTable.productId, existing.productId));
+  if (inv) {
+    const oldType = existing.entryType;
+    const oldQty = existing.quantity;
+    const cur = inv.currentStock;
+    let newStock: number;
+
+    if (oldType !== "closing" && newType !== "closing") {
+      // Both additive — undo old, apply new
+      newStock = cur - oldQty + newQty;
+    } else if (oldType === "closing" && newType === "closing") {
+      // Still a closing entry — just set to new count
+      newStock = newQty;
+    } else if (oldType !== "closing" && newType === "closing") {
+      // Changed to closing — set inventory to the new count
+      newStock = newQty;
+    } else {
+      // Was closing, now additive — can't undo a SET, add the new quantity
+      newStock = cur + newQty;
+    }
+
+    await db.update(inventoryTable)
+      .set({ currentStock: Math.max(0, newStock), lastUpdated: new Date() })
+      .where(eq(inventoryTable.productId, existing.productId));
+  }
+
+  const [product] = await db.select().from(productsTable).where(eq(productsTable.id, existing.productId));
+  res.json({ ...updated, productName: product?.name ?? "Unknown" });
+});
+
 export default router;

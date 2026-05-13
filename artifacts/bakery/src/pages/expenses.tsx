@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Receipt, Plus, CheckCircle2, XCircle, Clock,
   ChevronLeft, ChevronRight, BarChart2, Trash2, FileText,
-  ShieldCheck, ShieldAlert, UserCheck,
+  ShieldCheck, ShieldAlert, UserCheck, Pencil,
 } from "lucide-react";
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -89,6 +89,7 @@ export default function ExpensesPage() {
   const [reviewModal, setReviewModal] = useState<{ id: number; desc: string; status: string; firstApprovedBy: string | null } | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
   const [deleteModal, setDeleteModal] = useState<{ id: number; desc: string } | null>(null);
+  const [editModal, setEditModal] = useState<{ id: number; amount: string; description: string; category: string; expenseDate: string } | null>(null);
 
   // Report month navigation
   const now = new Date();
@@ -154,6 +155,18 @@ export default function ExpensesPage() {
       qc.invalidateQueries({ queryKey: ["expenses"] });
       toast({ title: "Expense deleted" });
       setDeleteModal(null);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const editMutation = useMutation({
+    mutationFn: ({ id, ...body }: { id: number; amount: number; description: string; category: string; expenseDate: string }) =>
+      apiFetch(`/expenses/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["expenses-report"] });
+      toast({ title: "Expense updated" });
+      setEditModal(null);
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
@@ -249,6 +262,15 @@ export default function ExpensesPage() {
                     {e.status === "awaiting_second" ? "Give 2nd Approval" : "Review"}
                   </button>
                 )
+              )}
+              {(e.status === "pending" || e.status === "awaiting_second") && (isAdmin || e.submittedBy === user?.name) && (
+                <button
+                  onClick={() => setEditModal({ id: e.id, amount: String(e.amount), description: e.description, category: e.category, expenseDate: e.expenseDate })}
+                  className="p-1.5 rounded text-muted-foreground hover:bg-muted transition-colors"
+                  title="Edit"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
               )}
               {(e.status === "pending" || e.status === "awaiting_second") && (isAdmin || e.submittedBy === user?.name) && (
                 <button
@@ -694,6 +716,56 @@ export default function ExpensesPage() {
                 </Button>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── Edit Expense Dialog ── */}
+      {editModal && (
+        <Dialog open onOpenChange={() => setEditModal(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Pencil className="h-5 w-5" /> Edit Expense
+              </DialogTitle>
+            </DialogHeader>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                editMutation.mutate({ id: editModal.id, amount: Number(editModal.amount), description: editModal.description, category: editModal.category, expenseDate: editModal.expenseDate });
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <Label>What was spent on?</Label>
+                <Input className="mt-1" value={editModal.description} onChange={(e) => setEditModal({ ...editModal, description: e.target.value })} required />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Amount (UGX)</Label>
+                  <Input className="mt-1" type="number" min="1" value={editModal.amount} onChange={(e) => setEditModal({ ...editModal, amount: e.target.value })} required />
+                </div>
+                <div>
+                  <Label>Date</Label>
+                  <Input className="mt-1" type="date" value={editModal.expenseDate} onChange={(e) => setEditModal({ ...editModal, expenseDate: e.target.value })} required />
+                </div>
+              </div>
+              <div>
+                <Label>Category</Label>
+                <Select value={editModal.category} onValueChange={(v) => setEditModal({ ...editModal, category: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2 justify-end pt-1">
+                <Button type="button" variant="outline" onClick={() => setEditModal(null)}>Cancel</Button>
+                <Button type="submit" disabled={editMutation.isPending}>
+                  {editMutation.isPending ? "Saving…" : "Save Changes"}
+                </Button>
+              </div>
+            </form>
           </DialogContent>
         </Dialog>
       )}

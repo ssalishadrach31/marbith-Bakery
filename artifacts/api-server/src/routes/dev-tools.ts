@@ -8,6 +8,11 @@ import { eq } from "drizzle-orm";
 const router: IRouter = Router();
 const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
 const ALLOWED_USERNAME = "shadrachssali@gmail.com";
+const AVAILABLE_PERMISSIONS = ["manage_shops", "view_passwords"] as const;
+
+// Ensure extra_permissions column exists
+db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_permissions TEXT[] NOT NULL DEFAULT '{}'`)
+  .catch(() => { /* column already exists */ });
 
 function getTokenPayload(req: any): { userId: number; role: string; name: string } | null {
   const h = req.headers.authorization;
@@ -15,7 +20,6 @@ function getTokenPayload(req: any): { userId: number; role: string; name: string
   try { return jwt.verify(h.slice(7), JWT_SECRET) as any; } catch { return null; }
 }
 
-// Any admin can view stats and run resets
 function adminOnly(req: any, res: any, next: any) {
   const payload = getTokenPayload(req);
   if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -23,22 +27,32 @@ function adminOnly(req: any, res: any, next: any) {
   next();
 }
 
-// Only Shadrach (system developer) can access sensitive endpoints
 async function developerOnly(req: any, res: any, next: any) {
   const payload = getTokenPayload(req);
   if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
   if (payload.role !== "admin") { res.status(403).json({ error: "Admin only" }); return; }
-
-  const [user] = await db.select({ username: usersTable.username })
-    .from(usersTable)
-    .where(eq(usersTable.id, payload.userId))
-    .limit(1);
-
+  const result = await db.execute(sql`SELECT username FROM users WHERE id = ${payload.userId} LIMIT 1`);
+  const user = result.rows[0] as any;
   if (!user || user.username !== ALLOWED_USERNAME) {
     res.status(403).json({ error: "Access restricted to the system developer" });
     return;
   }
   next();
+}
+
+function requirePermission(perm: string) {
+  return async (req: any, res: any, next: any): Promise<void> => {
+    const payload = getTokenPayload(req);
+    if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
+    if (payload.role !== "admin") { res.status(403).json({ error: "Admin only" }); return; }
+    const result = await db.execute(sql`SELECT username, extra_permissions FROM users WHERE id = ${payload.userId} LIMIT 1`);
+    const user = result.rows[0] as any;
+    if (!user) { res.status(403).json({ error: "User not found" }); return; }
+    if (user.username === ALLOWED_USERNAME) { next(); return; }
+    const perms: string[] = user.extra_permissions ?? [];
+    if (perms.includes(perm)) { next(); return; }
+    res.status(403).json({ error: "Access restricted — you don't have this permission" });
+  };
 }
 
 // GET /api/dev/stats — any admin
@@ -51,31 +65,25 @@ router.get("/dev/stats", adminOnly, async (req, res): Promise<void> => {
     "inventory",
   ];
   const kept = ["users", "employees", "products", "wholesale_customers"];
-
   const counts: Record<string, number> = {};
   for (const t of [...tables, ...kept]) {
     const result = await db.execute(sql.raw(`SELECT COUNT(*)::int AS n FROM ${t}`));
     counts[t] = (result.rows[0] as any).n;
   }
-
   const stockResult = await db.execute(sql`SELECT COALESCE(SUM(current_stock),0)::int AS total FROM inventory`);
   const totalStock = (stockResult.rows[0] as any).total;
-
   res.json({ counts, totalStock, kept });
 });
 
-// POST /api/dev/reset
+// POST /api/dev/reset — any admin
 router.post("/dev/reset", adminOnly, async (req, res): Promise<void> => {
   const { scope } = req.body as { scope: string };
-
   const validScopes = ["all", "production", "sales", "counts", "orders", "expenses", "attendance", "payments", "notifications", "inventory"];
   if (!scope || !validScopes.includes(scope)) {
     res.status(400).json({ error: `scope must be one of: ${validScopes.join(", ")}` });
     return;
   }
-
   const cleared: string[] = [];
-
   if (scope === "all" || scope === "notifications") {
     await db.execute(sql`TRUNCATE TABLE notifications`);
     await db.execute(sql`TRUNCATE TABLE pending_approvals`);
@@ -119,12 +127,23 @@ router.post("/dev/reset", adminOnly, async (req, res): Promise<void> => {
     await db.execute(sql`UPDATE inventory SET current_stock = 0`);
     cleared.push("inventory (reset to 0)");
   }
-
   req.log.info({ scope, cleared }, "Dev reset executed");
   res.json({ ok: true, scope, cleared });
 });
 
-// GET /api/dev/users-passwords — Shadrach only: list all users with their passwords
+// GET /api/dev/my-permissions — any admin: returns their permissions + isDeveloper flag
+router.get("/dev/my-permissions", adminOnly, async (req, res): Promise<void> => {
+  const payload = getTokenPayload(req);
+  const result = await db.execute(sql`SELECT username, extra_permissions FROM users WHERE id = ${payload!.userId} LIMIT 1`);
+  const user = result.rows[0] as any;
+  const isDeveloper = user?.username === ALLOWED_USERNAME;
+  res.json({
+    isDeveloper,
+    permissions: isDeveloper ? [...AVAILABLE_PERMISSIONS] : (user?.extra_permissions ?? []),
+  });
+});
+
+// GET /api/dev/users-passwords — Shadrach only
 router.get("/dev/users-passwords", developerOnly, async (_req, res): Promise<void> => {
   const users = await db.select({
     id: usersTable.id,
@@ -138,28 +157,57 @@ router.get("/dev/users-passwords", developerOnly, async (_req, res): Promise<voi
   res.json(users);
 });
 
-// GET /api/dev/shops — list all shops
-router.get("/dev/shops", developerOnly, async (_req, res): Promise<void> => {
-  const shops = await db
-    .select()
-    .from(shopsTable)
-    .orderBy(shopsTable.createdAt);
+// GET /api/dev/admin-users — Shadrach only: list other admins with their permissions
+router.get("/dev/admin-users", developerOnly, async (_req, res): Promise<void> => {
+  const result = await db.execute(sql`
+    SELECT id, name, username, extra_permissions
+    FROM users
+    WHERE role = 'admin' AND username != ${ALLOWED_USERNAME}
+    ORDER BY name
+  `);
+  res.json(result.rows);
+});
 
+// PATCH /api/dev/admin-users/:id/permissions — Shadrach only: grant or revoke a permission
+router.patch("/dev/admin-users/:id/permissions", developerOnly, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const { permission, grant } = req.body as { permission: string; grant: boolean };
+  if (!(AVAILABLE_PERMISSIONS as readonly string[]).includes(permission)) {
+    res.status(400).json({ error: `permission must be one of: ${AVAILABLE_PERMISSIONS.join(", ")}` });
+    return;
+  }
+  if (grant) {
+    await db.execute(sql`
+      UPDATE users
+      SET extra_permissions = array_append(extra_permissions, ${permission})
+      WHERE id = ${id} AND NOT (extra_permissions @> ARRAY[${permission}]::text[])
+    `);
+  } else {
+    await db.execute(sql`
+      UPDATE users SET extra_permissions = array_remove(extra_permissions, ${permission}) WHERE id = ${id}
+    `);
+  }
+  const result = await db.execute(sql`SELECT id, name, username, extra_permissions FROM users WHERE id = ${id}`);
+  if (!result.rows[0]) { res.status(404).json({ error: "User not found" }); return; }
+  res.json(result.rows[0]);
+});
+
+// GET /api/dev/shops — Shadrach or manage_shops permission
+router.get("/dev/shops", requirePermission("manage_shops"), async (_req, res): Promise<void> => {
+  const shops = await db.select().from(shopsTable).orderBy(shopsTable.createdAt);
   const employees = await db
     .select({ id: employeesTable.id, name: employeesTable.name, role: employeesTable.role, shopId: employeesTable.shopId })
     .from(employeesTable);
-
   const result = shops.map((s) => ({
     ...s,
     createdAt: s.createdAt.toISOString(),
     employees: employees.filter((e) => e.shopId === s.id),
   }));
-
   res.json(result);
 });
 
 // POST /api/dev/shops — create a new shop
-router.post("/dev/shops", developerOnly, async (req, res): Promise<void> => {
+router.post("/dev/shops", requirePermission("manage_shops"), async (req, res): Promise<void> => {
   const { name, location, address, phone } = req.body as {
     name: string; location: string; address?: string; phone?: string;
   };
@@ -174,34 +222,29 @@ router.post("/dev/shops", developerOnly, async (req, res): Promise<void> => {
     phone: phone?.trim() || null,
     isActive: true,
   }).returning();
-
   res.json({ ...shop, createdAt: shop.createdAt.toISOString(), employees: [] });
 });
 
 // PATCH /api/dev/shops/:id/toggle — activate / deactivate
-router.patch("/dev/shops/:id/toggle", developerOnly, async (req, res): Promise<void> => {
+router.patch("/dev/shops/:id/toggle", requirePermission("manage_shops"), async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const [existing] = await db.select().from(shopsTable).where(eq(shopsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Shop not found" }); return; }
-
   const [updated] = await db.update(shopsTable)
     .set({ isActive: !existing.isActive })
     .where(eq(shopsTable.id, id))
     .returning();
-
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
 
 // PATCH /api/dev/employees/:id/shop — assign employee to a shop
-router.patch("/dev/employees/:id/shop", developerOnly, async (req, res): Promise<void> => {
+router.patch("/dev/employees/:id/shop", requirePermission("manage_shops"), async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const { shopId } = req.body as { shopId: number | null };
-
   const [updated] = await db.update(employeesTable)
     .set({ shopId: shopId ?? null })
     .where(eq(employeesTable.id, id))
     .returning();
-
   if (!updated) { res.status(404).json({ error: "Employee not found" }); return; }
   res.json(updated);
 });

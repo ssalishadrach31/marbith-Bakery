@@ -55,7 +55,7 @@ const navItems: NavItem[] = [
   { href: "/daily-report",     label: "Daily Report",    icon: FileBarChart,    roles: ["admin", "staff"] },
   { href: "/monthly-report",   label: "Monthly Report",  icon: FileText,        roles: ["admin"] },
   { href: "/users",            label: "User Management", icon: ShieldCheck,     roles: ["admin"] },
-  { href: "/dev-tools",        label: "Developer Tools", icon: Terminal,        roles: ["admin"], onlyFor: "shadrachssali@gmail.com" },
+  { href: "/dev-tools",        label: "Developer Tools", icon: Terminal,        roles: ["admin"] },
   { href: "/rider-deliveries", label: "My Deliveries",   icon: Truck,           roles: ["rider"] },
   { href: "/communications",   label: "Communications",  icon: MessageSquare,   roles: ["admin", "staff", "cashier", "baker", "rider"] },
   { href: "/profile",          label: "My Profile",      icon: UserCircle,      roles: ["admin", "staff", "cashier", "baker", "rider"] },

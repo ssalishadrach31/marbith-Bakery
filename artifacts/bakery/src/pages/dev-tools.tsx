@@ -12,7 +12,7 @@ import {
   ShoppingCart, Factory, CalendarDays, Wallet,
   Package, ClipboardList, Users, Bell, CheckCircle2,
   Store, Plus, ToggleLeft, ToggleRight, MapPin, Phone, Tag,
-  Eye, EyeOff, Save, Palette, KeyRound,
+  Eye, EyeOff, Save, Palette, KeyRound, ShieldCheck,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -31,6 +31,7 @@ async function apiFetch(path: string, options?: RequestInit) {
 }
 
 type Stats = { counts: Record<string, number>; totalStock: number; kept: string[] };
+type MyPerms = { isDeveloper: boolean; permissions: string[] };
 
 type ShopEmployee = { id: number; name: string; role: string; shopId: number | null };
 type ShopRecord = {
@@ -60,7 +61,7 @@ function StatBadge({ label, value, highlight }: { label: string; value: number; 
   );
 }
 
-const ALLOWED = "shadrachssali@gmail.com";
+const DEVELOPER_EMAIL = "shadrachssali@gmail.com";
 
 export default function DevToolsPage() {
   const currentUser = getUser();
@@ -69,24 +70,19 @@ export default function DevToolsPage() {
   const [confirming, setConfirming] = useState<string | null>(null);
   const [confirmAll, setConfirmAll] = useState(false);
 
-  if (!currentUser || currentUser.username !== ALLOWED) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center">
-        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
-          <AlertTriangle className="h-8 w-8 text-red-500" />
-        </div>
-        <h1 className="text-xl font-bold text-red-700">Access Restricted</h1>
-        <p className="text-muted-foreground text-sm max-w-xs">
-          Developer Tools are only accessible to the system developer account.
-          This access attempt has been noted.
-        </p>
-      </div>
-    );
-  }
+  const isAdmin = currentUser?.role === "admin";
+  const isDeveloper = currentUser?.username === DEVELOPER_EMAIL;
+
+  const { data: myPerms } = useQuery<MyPerms>({
+    queryKey: ["dev-my-permissions"],
+    queryFn: () => apiFetch("/dev/my-permissions"),
+    enabled: isAdmin,
+  });
 
   const { data: stats, isLoading, refetch } = useQuery<Stats>({
     queryKey: ["dev-stats"],
     queryFn: () => apiFetch("/dev/stats"),
+    enabled: isAdmin,
   });
 
   const resetMutation = useMutation({
@@ -98,20 +94,42 @@ export default function DevToolsPage() {
       setConfirmAll(false);
     },
     onError: (err: any) => {
-      const isAccessDenied = err.message?.toLowerCase().includes("restricted") || err.message?.toLowerCase().includes("developer");
-      toast({
-        title: "Reset failed",
-        description: isAccessDenied
-          ? "These tools are locked to the system developer account (shadrachssali@gmail.com). Please log out and sign in as Shadrach to use them."
-          : err.message,
-        variant: "destructive",
-      });
+      toast({ title: "Reset failed", description: err.message, variant: "destructive" });
       setConfirming(null);
       setConfirmAll(false);
     },
   });
 
+  // Block non-admins
+  if (!currentUser || !isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center">
+        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
+          <AlertTriangle className="h-8 w-8 text-red-500" />
+        </div>
+        <h1 className="text-xl font-bold text-red-700">Access Restricted</h1>
+        <p className="text-muted-foreground text-sm max-w-xs">
+          Developer Tools are only accessible to admin accounts.
+        </p>
+      </div>
+    );
+  }
+
+  function hasPermission(perm: string) {
+    return isDeveloper || (myPerms?.permissions ?? []).includes(perm);
+  }
+
   const counts = stats?.counts ?? {};
+
+  // Build visible tab list dynamically
+  const visibleTabs = [
+    { value: "data", label: "Data" },
+    { value: "prices", label: "Prices" },
+    ...(hasPermission("manage_shops") ? [{ value: "shops", label: "Shops" }] : []),
+    { value: "branding", label: "Branding" },
+    ...(hasPermission("view_passwords") ? [{ value: "passwords", label: "Passwords" }] : []),
+    ...(isDeveloper ? [{ value: "permissions", label: "Permissions" }] : []),
+  ];
 
   return (
     <div className="space-y-5">
@@ -122,7 +140,7 @@ export default function DevToolsPage() {
             Developer Tools
           </h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            Restricted to system developer only.
+            {isDeveloper ? "Full access — system developer." : "Admin access — limited to data management."}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()} className="flex items-center gap-1.5">
@@ -132,12 +150,13 @@ export default function DevToolsPage() {
       </div>
 
       <Tabs defaultValue="data">
-        <TabsList className="w-full grid grid-cols-5">
-          <TabsTrigger value="data" className="text-xs">Data</TabsTrigger>
-          <TabsTrigger value="prices" className="text-xs">Prices</TabsTrigger>
-          <TabsTrigger value="shops" className="text-xs">Shops</TabsTrigger>
-          <TabsTrigger value="branding" className="text-xs">Branding</TabsTrigger>
-          <TabsTrigger value="passwords" className="text-xs">Passwords</TabsTrigger>
+        <TabsList
+          className="w-full grid"
+          style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
+        >
+          {visibleTabs.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value} className="text-xs">{tab.label}</TabsTrigger>
+          ))}
         </TabsList>
 
         {/* ── DATA MANAGEMENT TAB ─────────────────────────────────── */}
@@ -257,9 +276,11 @@ export default function DevToolsPage() {
         </TabsContent>
 
         {/* ── SHOPS TAB ────────────────────────────────────────────── */}
-        <TabsContent value="shops" className="mt-5">
-          <ShopsPanel />
-        </TabsContent>
+        {hasPermission("manage_shops") && (
+          <TabsContent value="shops" className="mt-5">
+            <ShopsPanel />
+          </TabsContent>
+        )}
 
         {/* ── BRANDING TAB ─────────────────────────────────────────── */}
         <TabsContent value="branding" className="mt-5">
@@ -267,9 +288,18 @@ export default function DevToolsPage() {
         </TabsContent>
 
         {/* ── PASSWORDS TAB ────────────────────────────────────────── */}
-        <TabsContent value="passwords" className="mt-5">
-          <PasswordsPanel />
-        </TabsContent>
+        {hasPermission("view_passwords") && (
+          <TabsContent value="passwords" className="mt-5">
+            <PasswordsPanel />
+          </TabsContent>
+        )}
+
+        {/* ── PERMISSIONS TAB — Shadrach only ──────────────────────── */}
+        {isDeveloper && (
+          <TabsContent value="permissions" className="mt-5">
+            <PermissionsPanel />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
@@ -449,7 +479,6 @@ function ShopsPanel() {
         </Button>
       </div>
 
-      {/* Add shop form */}
       {showForm && (
         <Card className="border-primary/30">
           <CardContent className="p-4">
@@ -482,7 +511,6 @@ function ShopsPanel() {
         </Card>
       )}
 
-      {/* Shops list */}
       {isLoading ? (
         <div className="space-y-3">{Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-32 bg-muted rounded-xl animate-pulse" />)}</div>
       ) : (
@@ -502,8 +530,6 @@ function ShopsPanel() {
                       <div className="flex items-center gap-1.5"><MapPin className="h-3 w-3" /> {shop.location}{shop.address ? ` — ${shop.address}` : ""}</div>
                       {shop.phone && <div className="flex items-center gap-1.5"><Phone className="h-3 w-3" /> {shop.phone}</div>}
                     </div>
-
-                    {/* Employees at this shop */}
                     <div className="mt-3">
                       <p className="text-xs font-medium text-foreground/70 mb-1.5">Staff assigned ({shop.employees.length})</p>
                       <div className="flex flex-wrap gap-1.5">
@@ -514,7 +540,6 @@ function ShopsPanel() {
                       </div>
                     </div>
                   </div>
-
                   <button
                     onClick={() => toggleShop.mutate(shop.id)}
                     disabled={toggleShop.isPending}
@@ -533,7 +558,6 @@ function ShopsPanel() {
         </div>
       )}
 
-      {/* Assign employees section — only shown when there are multiple shops */}
       {(shops?.length ?? 0) > 1 && (
         <Card className="border-blue-200">
           <CardContent className="p-4">
@@ -574,13 +598,12 @@ function ShopsPanel() {
       )}
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
-        <strong>Future:</strong> Once you add a second shop, sales, production, and reports will be filterable per shop so each location's performance is tracked separately. For now, everything runs as one shop.
+        <strong>Future:</strong> Once you add a second shop, sales, production, and reports will be filterable per shop so each location's performance is tracked separately.
       </div>
     </div>
   );
 }
 
-// ── BRANDING PANEL ───────────────────────────────────────────────────────────
 const BRAND_KEY = "marbith_branding";
 const FONT_DEFAULT_SENTINEL = "__default__";
 const FONTS = [
@@ -650,7 +673,6 @@ function BrandingPanel() {
               </SelectContent>
             </Select>
           </div>
-          {/* Live preview */}
           <div className="rounded-xl border p-4 bg-sidebar" style={{ fontFamily: b.font || undefined }}>
             <p className="text-xs text-muted-foreground mb-2 font-sans">Preview</p>
             <div className="text-sidebar-primary font-bold text-lg leading-tight">{b.appName || "Marbith Bakery"}</div>
@@ -667,7 +689,6 @@ function BrandingPanel() {
   );
 }
 
-// ── PASSWORDS PANEL ──────────────────────────────────────────────────────────
 const ROLE_BADGE: Record<string, string> = {
   admin:   "bg-purple-100 text-purple-700",
   staff:   "bg-blue-100 text-blue-700",
@@ -689,7 +710,7 @@ function PasswordsPanel() {
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
         <KeyRound className="h-4 w-4 shrink-0" />
-        This view is only visible to you as the system developer. Other admins cannot access it.
+        This view shows all login credentials. Only visible to users with this permission.
       </div>
       <Card>
         <CardContent className="p-0">
@@ -736,6 +757,88 @@ function PasswordsPanel() {
           </table>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+const AVAILABLE_PERMS = [
+  { key: "manage_shops",   label: "Manage Shops",    desc: "Can add shops, toggle them active/inactive, and assign staff to branches" },
+  { key: "view_passwords", label: "View Passwords",  desc: "Can see all user login credentials in the Passwords tab" },
+];
+
+function PermissionsPanel() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const { data: admins, isLoading } = useQuery<any[]>({
+    queryKey: ["dev-admin-users"],
+    queryFn: () => apiFetch("/dev/admin-users"),
+  });
+
+  const togglePerm = useMutation({
+    mutationFn: ({ id, permission, grant }: { id: number; permission: string; grant: boolean }) =>
+      apiFetch(`/dev/admin-users/${id}/permissions`, { method: "PATCH", body: JSON.stringify({ permission, grant }) }),
+    onSuccess: (updated: any) => {
+      qc.setQueryData(["dev-admin-users"], (old: any[] | undefined) =>
+        (old ?? []).map((a) => (a.id === updated.id ? updated : a))
+      );
+      toast({ title: "Permission updated" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+        <ShieldCheck className="h-4 w-4 shrink-0" />
+        Grant or revoke developer-level privileges for other admin accounts. Only you can see and change these.
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">{Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-28 bg-muted rounded-xl animate-pulse" />)}</div>
+      ) : (admins ?? []).length === 0 ? (
+        <div className="text-center py-10 text-muted-foreground text-sm">No other admin accounts found.</div>
+      ) : (
+        (admins ?? []).map((admin) => (
+          <Card key={admin.id}>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-9 h-9 rounded-full bg-purple-100 flex items-center justify-center font-bold text-purple-700 text-sm shrink-0">
+                  {(admin.name as string)[0].toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">{admin.name}</p>
+                  <p className="text-xs text-muted-foreground">{admin.username}</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {AVAILABLE_PERMS.map((perm) => {
+                  const hasIt = (admin.extra_permissions ?? []).includes(perm.key);
+                  return (
+                    <div key={perm.key} className="flex items-center justify-between gap-3 py-2 border-t border-border first:border-0">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{perm.label}</p>
+                        <p className="text-xs text-muted-foreground">{perm.desc}</p>
+                      </div>
+                      <button
+                        onClick={() => togglePerm.mutate({ id: admin.id, permission: perm.key, grant: !hasIt })}
+                        disabled={togglePerm.isPending}
+                        className={`shrink-0 transition-colors disabled:opacity-50 ${hasIt ? "text-green-600 hover:text-green-700" : "text-muted-foreground hover:text-foreground"}`}
+                        title={hasIt ? `Revoke ${perm.label}` : `Grant ${perm.label}`}
+                      >
+                        {hasIt
+                          ? <ToggleRight className="h-7 w-7" />
+                          : <ToggleLeft className="h-7 w-7" />
+                        }
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        ))
+      )}
     </div>
   );
 }
