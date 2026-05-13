@@ -98,7 +98,14 @@ export default function DevToolsPage() {
       setConfirmAll(false);
     },
     onError: (err: any) => {
-      toast({ title: "Reset failed", description: err.message, variant: "destructive" });
+      const isAccessDenied = err.message?.toLowerCase().includes("restricted") || err.message?.toLowerCase().includes("developer");
+      toast({
+        title: "Reset failed",
+        description: isAccessDenied
+          ? "These tools are locked to the system developer account (shadrachssali@gmail.com). Please log out and sign in as Shadrach to use them."
+          : err.message,
+        variant: "destructive",
+      });
       setConfirming(null);
       setConfirmAll(false);
     },

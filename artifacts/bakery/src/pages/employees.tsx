@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useListEmployees, useCreateEmployee, useDeleteEmployee, useListAttendance, useCheckIn, useCheckOut, getListEmployeesQueryKey, getListAttendanceQueryKey } from "@workspace/api-client-react";
 import { queryClient } from "@/lib/query-client";
-import { formatDateTime, formatUGX } from "@/lib/auth";
+import { formatDateTime, formatUGX, getToken } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, UserCheck, UserX } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { Trash2, UserCheck, UserX, Pencil } from "lucide-react";
+
+async function apiFetch(path: string, options?: RequestInit) {
+  const token = getToken();
+  const res = await fetch(`/api${path}`, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options?.headers },
+  });
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Request failed (${res.status})`); }
+  return res.json();
+}
 
 const ROLES = ["admin", "baker", "cashier", "rider"] as const;
 const ROLE_COLORS: Record<string, string> = {
@@ -20,6 +31,8 @@ const ROLE_COLORS: Record<string, string> = {
   cashier: "bg-blue-100 text-blue-700",
   rider: "bg-green-100 text-green-700",
 };
+
+const EMPTY_FORM = { name: "", role: "cashier" as typeof ROLES[number], phone: "", email: "", salary: "", joinDate: new Date().toISOString().split("T")[0] };
 
 export default function EmployeesPage() {
   const { data: employees, isLoading } = useListEmployees({ query: { queryKey: getListEmployeesQueryKey() } });
@@ -31,7 +44,10 @@ export default function EmployeesPage() {
   const { toast } = useToast();
 
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", role: "cashier" as typeof ROLES[number], phone: "", email: "", salary: "", joinDate: new Date().toISOString().split("T")[0] });
+  const [form, setForm] = useState(EMPTY_FORM);
+
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState(EMPTY_FORM);
 
   const today = new Date().toISOString().split("T")[0];
   const todayAttendance = attendance?.filter((a) => a.date === today) ?? [];
@@ -42,18 +58,44 @@ export default function EmployeesPage() {
       await createEmployee.mutateAsync({ data: { ...form, salary: form.salary ? parseFloat(form.salary) : undefined } });
       queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
       setShowForm(false);
-      setForm({ name: "", role: "cashier", phone: "", email: "", salary: "", joinDate: new Date().toISOString().split("T")[0] });
+      setForm(EMPTY_FORM);
       toast({ title: "Employee added" });
-    } catch { toast({ title: "Error", variant: "destructive" }); }
+    } catch { toast({ title: "Error adding employee", variant: "destructive" }); }
+  }
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: typeof EMPTY_FORM }) =>
+      apiFetch(`/employees/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ ...data, salary: data.salary ? parseFloat(data.salary) : undefined }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
+      setEditingId(null);
+      toast({ title: "Employee updated" });
+    },
+    onError: (err: any) => toast({ title: "Error updating employee", description: err.message, variant: "destructive" }),
+  });
+
+  function openEdit(emp: any) {
+    setEditForm({
+      name: emp.name ?? "",
+      role: emp.role ?? "cashier",
+      phone: emp.phone ?? "",
+      email: emp.email ?? "",
+      salary: emp.salary != null ? String(emp.salary) : "",
+      joinDate: emp.joinDate ?? new Date().toISOString().split("T")[0],
+    });
+    setEditingId(emp.id);
   }
 
   async function handleDelete(id: number) {
-    if (!confirm("Delete this employee?")) return;
+    if (!confirm("Delete this employee? This cannot be undone.")) return;
     try {
       await deleteEmployee.mutateAsync({ id });
       queryClient.invalidateQueries({ queryKey: getListEmployeesQueryKey() });
       toast({ title: "Employee deleted" });
-    } catch { toast({ title: "Error", variant: "destructive" }); }
+    } catch { toast({ title: "Error deleting employee", variant: "destructive" }); }
   }
 
   async function handleCheckIn(employeeId: number) {
@@ -112,9 +154,22 @@ export default function EmployeesPage() {
                           <div><span className="font-medium text-foreground/70">Joined:</span> {emp.joinDate ?? "—"}</div>
                         </div>
                       </div>
-                      <button onClick={() => handleDelete(emp.id)} className="p-1.5 text-destructive hover:bg-destructive/10 rounded shrink-0">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => openEdit(emp)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                          title="Edit employee"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(emp.id)}
+                          className="p-1.5 text-destructive hover:bg-destructive/10 rounded"
+                          title="Delete employee"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -164,6 +219,7 @@ export default function EmployeesPage() {
         </TabsContent>
       </Tabs>
 
+      {/* Add Employee dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent>
           <DialogHeader><DialogTitle>Add Employee</DialogTitle></DialogHeader>
@@ -198,6 +254,54 @@ export default function EmployeesPage() {
             <div className="flex gap-2 justify-end pt-2">
               <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
               <Button type="submit" disabled={createEmployee.isPending}>Add Employee</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Employee dialog */}
+      <Dialog open={editingId !== null} onOpenChange={(open) => { if (!open) setEditingId(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Employee</DialogTitle></DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (editingId !== null) updateMutation.mutate({ id: editingId, data: editForm });
+            }}
+            className="space-y-3"
+          >
+            <div>
+              <Label>Full Name</Label>
+              <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="mt-1" required />
+            </div>
+            <div>
+              <Label>Role</Label>
+              <Select value={editForm.role} onValueChange={(v) => setEditForm({ ...editForm, role: v as typeof ROLES[number] })}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>{ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Phone</Label>
+              <Input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className="mt-1" required />
+            </div>
+            <div>
+              <Label>Email (optional)</Label>
+              <Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="mt-1" />
+            </div>
+            <div>
+              <Label>Monthly Salary (UGX, optional)</Label>
+              <Input type="number" value={editForm.salary} onChange={(e) => setEditForm({ ...editForm, salary: e.target.value })} className="mt-1" />
+            </div>
+            <div>
+              <Label>Join Date</Label>
+              <Input type="date" value={editForm.joinDate} onChange={(e) => setEditForm({ ...editForm, joinDate: e.target.value })} className="mt-1" />
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
+              <Button type="submit" disabled={updateMutation.isPending}>
+                {updateMutation.isPending ? "Saving…" : "Save Changes"}
+              </Button>
             </div>
           </form>
         </DialogContent>
