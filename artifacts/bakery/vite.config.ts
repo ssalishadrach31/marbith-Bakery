@@ -37,7 +37,6 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    port: 23375,
     host: "0.0.0.0",
     allowedHosts: true,
     fs: {
@@ -50,10 +49,5 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
-  },
-  preview: {
-    port: 23375,
-    host: "0.0.0.0",
-    allowedHosts: true,
   },
 });
