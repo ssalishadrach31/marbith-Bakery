@@ -18,6 +18,18 @@ function generateReceipt() {
   return `RCP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
+class InsufficientStockError extends Error {
+  readonly productName: string;
+  readonly available: number;
+  readonly requested: number;
+  constructor(productName: string, available: number, requested: number) {
+    super(`Not enough stock for "${productName}". Available: ${available}, requested: ${requested}`);
+    this.productName = productName;
+    this.available = available;
+    this.requested = requested;
+  }
+}
+
 router.get("/sales", async (req, res): Promise<void> => {
   const queryParams = ListSalesQueryParams.safeParse(req.query);
   let rows;
@@ -107,50 +119,96 @@ router.post("/sales", async (req, res): Promise<void> => {
   }
 
   const { paymentMethod, transactionId, items } = parsed.data;
+  const sellerName = getUserName(req);
 
-  // Get products to get their prices
-  const productIds = items.map((i) => i.productId);
-  const products = await db.select().from(productsTable).where(inArray(productsTable.id, productIds));
-  const productMap = new Map(products.map((p) => [p.id, p]));
+  try {
+    const result = await db.transaction(async (tx) => {
+      // 1. Load all products needed
+      const productIds = items.map((i) => i.productId);
+      const products = await tx.select().from(productsTable).where(inArray(productsTable.id, productIds));
+      const productMap = new Map(products.map((p) => [p.id, p]));
 
-  let totalAmount = 0;
-  const saleItems = items.map((item) => {
-    const product = productMap.get(item.productId);
-    const unitPrice = product?.price ?? 0;
-    const subtotal = unitPrice * item.quantity;
-    totalAmount += subtotal;
-    return { productId: item.productId, quantity: item.quantity, unitPrice, subtotal };
-  });
+      // 2. For each item: atomically deduct stock only if enough exists.
+      //    The WHERE clause (current_stock >= requested_qty) makes this race-safe.
+      //    If two cashiers sell the last unit simultaneously, only one transaction wins.
+      for (const item of items) {
+        const [updated] = await tx
+          .update(inventoryTable)
+          .set({
+            currentStock: sql`${inventoryTable.currentStock} - ${item.quantity}`,
+            lastUpdated: new Date(),
+          })
+          .where(
+            and(
+              eq(inventoryTable.productId, item.productId),
+              sql`${inventoryTable.currentStock} >= ${item.quantity}`,
+            ),
+          )
+          .returning({ newStock: inventoryTable.currentStock });
 
-  const [sale] = await db.insert(salesTable).values({
-    receiptNumber: generateReceipt(),
-    totalAmount,
-    paymentMethod,
-    transactionId: transactionId ?? null,
-    soldBy: getUserName(req),
-  }).returning();
+        if (!updated) {
+          // Stock check failed — find out how much is actually available
+          const [inv] = await tx.select({ currentStock: inventoryTable.currentStock })
+            .from(inventoryTable)
+            .where(eq(inventoryTable.productId, item.productId));
+          const productName = productMap.get(item.productId)?.name ?? `Product #${item.productId}`;
+          throw new InsufficientStockError(productName, inv?.currentStock ?? 0, item.quantity);
+        }
+      }
 
-  for (const item of saleItems) {
-    await db.insert(saleItemsTable).values({ saleId: sale.id, ...item });
-    // Deduct inventory
-    const [inv] = await db.select().from(inventoryTable).where(eq(inventoryTable.productId, item.productId));
-    if (inv) {
-      await db.update(inventoryTable).set({ currentStock: Math.max(0, inv.currentStock - item.quantity), lastUpdated: new Date() }).where(eq(inventoryTable.productId, item.productId));
+      // 3. Calculate totals
+      let totalAmount = 0;
+      const saleItems = items.map((item) => {
+        const product = productMap.get(item.productId);
+        const unitPrice = product?.price ?? 0;
+        const subtotal = unitPrice * item.quantity;
+        totalAmount += subtotal;
+        return { productId: item.productId, quantity: item.quantity, unitPrice, subtotal };
+      });
+
+      // 4. Record the sale
+      const [sale] = await tx.insert(salesTable).values({
+        receiptNumber: generateReceipt(),
+        totalAmount,
+        paymentMethod,
+        transactionId: transactionId ?? null,
+        soldBy: sellerName,
+      }).returning();
+
+      // 5. Record sale line items
+      for (const item of saleItems) {
+        await tx.insert(saleItemsTable).values({ saleId: sale.id, ...item });
+      }
+
+      return { sale, saleItems, totalAmount };
+    });
+
+    // Notify admins (outside transaction — fire-and-forget)
+    const itemSummary = result.saleItems.length === 1
+      ? `${result.saleItems[0].quantity} item`
+      : `${result.saleItems.length} products`;
+    notifyByRoles(["admin"], {
+      type: "sale",
+      title: "New Sale Completed",
+      message: `${sellerName} sold ${itemSummary} · UGX ${result.totalAmount.toLocaleString()} via ${paymentMethod.replace("_", " ")}`,
+      relatedId: result.sale.id,
+    });
+
+    res.status(201).json({ ...result.sale, itemCount: result.saleItems.length });
+
+  } catch (err: unknown) {
+    if (err instanceof InsufficientStockError) {
+      res.status(409).json({
+        error: err.message,
+        code: "INSUFFICIENT_STOCK",
+        productName: err.productName,
+        available: err.available,
+        requested: err.requested,
+      });
+    } else {
+      throw err;
     }
   }
-
-  // Notify admins about the new sale (fire-and-forget)
-  const itemSummary = saleItems.length === 1
-    ? `${saleItems[0].quantity} item`
-    : `${saleItems.length} products`;
-  notifyByRoles(["admin"], {
-    type: "sale",
-    title: "New Sale Completed",
-    message: `${getUserName(req)} sold ${itemSummary} · UGX ${totalAmount.toLocaleString()} via ${paymentMethod.replace("_", " ")}`,
-    relatedId: sale.id,
-  });
-
-  res.status(201).json({ ...sale, itemCount: saleItems.length });
 });
 
 export default router;

@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListProducts, useCreateSale, useGetSale, getListSalesQueryKey, getGetDailySalesSummaryQueryKey, getGetDashboardSummaryQueryKey, getListInventoryQueryKey } from "@workspace/api-client-react";
+import { useListProducts, useCreateSale, useGetSale, getListSalesQueryKey, getGetDailySalesSummaryQueryKey, getGetDashboardSummaryQueryKey, getListInventoryQueryKey, getListProductsQueryKey } from "@workspace/api-client-react";
 import { formatUGX, formatDateTime, getUser } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import { Trash2, Plus, Minus, Printer, Download, PenLine, RotateCcw, Check, Phone, Settings2, Stamp } from "lucide-react";
 
-interface CartItem { productId: number; name: string; price: number; quantity: number; }
+interface CartItem { productId: number; name: string; price: number; quantity: number; stock: number; }
 
 const PAYMENT_METHODS = [
   { value: "cash", label: "Cash" },
@@ -169,7 +169,7 @@ function SignaturePad({ onSave, onCancel }: { onSave: (dataUrl: string) => void;
 
 export default function POSPage() {
   const qc = useQueryClient();
-  const { data: products } = useListProducts();
+  const { data: products } = useListProducts({ query: { queryKey: getListProductsQueryKey(), refetchInterval: 30_000 } });
   const createSale = useCreateSale();
   const { toast } = useToast();
   const user = getUser();
@@ -200,8 +200,11 @@ export default function POSPage() {
   function addToCart(product: typeof activeProducts[0]) {
     setCart((prev) => {
       const existing = prev.find((i) => i.productId === product.id);
-      if (existing) return prev.map((i) => i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { productId: product.id, name: product.name, price: product.price, quantity: 1 }];
+      if (existing) {
+        if (existing.quantity >= product.currentStock) return prev;
+        return prev.map((i) => i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i);
+      }
+      return [...prev, { productId: product.id, name: product.name, price: product.price, quantity: 1, stock: product.currentStock }];
     });
   }
 
@@ -211,7 +214,9 @@ export default function POSPage() {
     setCart((prev) => prev.map((i) => {
       if (i.productId !== productId) return i;
       const newQty = i.quantity + delta;
-      return newQty <= 0 ? null : { ...i, quantity: newQty };
+      if (newQty <= 0) return null;
+      if (newQty > i.stock) return i;
+      return { ...i, quantity: newQty };
     }).filter(Boolean) as CartItem[]);
   }
 
@@ -234,12 +239,26 @@ export default function POSPage() {
       qc.invalidateQueries({ queryKey: getGetDailySalesSummaryQueryKey() });
       qc.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
       qc.invalidateQueries({ queryKey: getListInventoryQueryKey() });
+      qc.invalidateQueries({ queryKey: getListProductsQueryKey() });
       setReceiptSaleId(sale.id);
       setShowReceipt(true);
       setCart([]);
       setTransactionId("");
-    } catch {
-      toast({ title: "Error", description: "Failed to process sale", variant: "destructive" });
+    } catch (err: any) {
+      if (err?.status === 409 || err?.data?.code === "INSUFFICIENT_STOCK") {
+        const name = err?.data?.productName ?? "an item";
+        const avail = err?.data?.available ?? 0;
+        const req = err?.data?.requested ?? 0;
+        toast({
+          title: "Not enough stock",
+          description: `Only ${avail} unit${avail !== 1 ? "s" : ""} of "${name}" available — you requested ${req}. Please update your cart.`,
+          variant: "destructive",
+        });
+        qc.invalidateQueries({ queryKey: getListProductsQueryKey() });
+        qc.invalidateQueries({ queryKey: getListInventoryQueryKey() });
+      } else {
+        toast({ title: "Error", description: "Failed to process sale", variant: "destructive" });
+      }
     }
   }
 
