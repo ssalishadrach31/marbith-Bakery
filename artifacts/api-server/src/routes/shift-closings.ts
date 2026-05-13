@@ -82,10 +82,18 @@ router.post("/shift-closings", async (req, res): Promise<void> => {
   const { shiftDate, notes } = req.body;
   const date = shiftDate || new Date().toISOString().split("T")[0];
 
+  // Block re-closing an already approved day
+  const existing = await db.execute(sql`
+    SELECT id, status FROM shift_closings WHERE shift_date = ${date}::date
+  `);
+  if (existing.rows.length > 0 && (existing.rows[0] as any).status === "approved") {
+    res.status(409).json({ error: "This day has already been closed and approved. Only one closing per day is allowed." });
+    return;
+  }
+
   const isAdmin = user.role === "admin";
   const status = isAdmin ? "approved" : "pending";
   const approvedBy = isAdmin ? user.name : null;
-  const approvedAt = isAdmin ? sql`NOW()` : sql`NULL`;
 
   const result = await db.execute(sql`
     INSERT INTO shift_closings (closed_by, shift_date, notes, status, approved_by, approved_at)
@@ -99,7 +107,9 @@ router.post("/shift-closings", async (req, res): Promise<void> => {
       SET closed_by  = EXCLUDED.closed_by,
           closed_at  = NOW(),
           notes      = EXCLUDED.notes,
-          status     = CASE WHEN shift_closings.status = 'approved' THEN 'approved' ELSE EXCLUDED.status END
+          status     = EXCLUDED.status,
+          approved_by = EXCLUDED.approved_by,
+          approved_at = EXCLUDED.approved_at
     RETURNING id, closed_by, shift_date::text AS shift_date, closed_at, notes, status, approved_by, approved_at
   `);
 

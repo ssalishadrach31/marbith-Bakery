@@ -82,8 +82,7 @@ router.post("/dev/reset", devAdminOnly, async (req, res): Promise<void> => {
     cleared.push("production");
   }
   if (scope === "all" || scope === "sales") {
-    await db.execute(sql`TRUNCATE TABLE sale_items`);
-    await db.execute(sql`TRUNCATE TABLE sales`);
+    await db.execute(sql`TRUNCATE TABLE sale_items, sales CASCADE`);
     cleared.push("sales", "sale_items");
   }
   if (scope === "all" || scope === "orders") {

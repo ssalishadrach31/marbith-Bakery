@@ -429,7 +429,15 @@ export default function StaffDashboardPage() {
         toast({ title: "Request Sent", description: "Your close day request has been sent to admin for review." });
       }
     },
-    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err: any) => {
+      setShowCloseConfirm(false);
+      qc.invalidateQueries({ queryKey: ["shift-closings"] });
+      if (err.message?.includes("already been closed")) {
+        toast({ title: "Already Closed", description: "Today's shift was already closed by another admin. Only one closing per day is allowed.", variant: "destructive" });
+      } else {
+        toast({ title: "Error", description: err.message, variant: "destructive" });
+      }
+    },
   });
 
   const approveCloseMutation = useMutation({
@@ -1506,15 +1514,7 @@ export default function StaffDashboardPage() {
                 </p>
               )}
             </div>
-            {isTodayClosed && isAdmin ? (
-              <button
-                onClick={() => closeDayMutation.mutate()}
-                disabled={closeDayMutation.isPending}
-                className="text-xs text-green-700 underline shrink-0"
-              >
-                Re-close
-              </button>
-            ) : !isTodayClosed && !isPendingClose ? (
+            {!isTodayClosed && !isPendingClose ? (
               <Button
                 onClick={() => setShowCloseConfirm(true)}
                 className="shrink-0 bg-primary text-primary-foreground"
