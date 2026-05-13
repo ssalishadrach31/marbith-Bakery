@@ -159,7 +159,7 @@ export default function OrdersPage() {
             {(selectedOrder as any)?.items?.length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Items Ordered</p>
-                <div className="space-y-1.5">
+                <div className="max-h-52 overflow-y-auto rounded-lg border border-border px-3 py-2 space-y-1.5">
                   {(selectedOrder as any).items.map((item: any, i: number) => (
                     <div key={i} className="flex justify-between items-center text-sm border-b border-border pb-1.5 last:border-0">
                       <span>{item.productName} <span className="text-muted-foreground">× {item.quantity}</span></span>

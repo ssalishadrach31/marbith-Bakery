@@ -1079,7 +1079,7 @@ export default function StaffDashboardPage() {
                       <label className="text-xs text-muted-foreground mb-1 block">Product</label>
                       <Select value={receiptForm.productId} onValueChange={(v) => setReceiptForm({ ...receiptForm, productId: v })}>
                         <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="max-h-52 overflow-y-auto">
                           {(products ?? []).filter((p: any) => p.isActive && p.category === "baked_goods").map((p: any) => (
                             <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                           ))}

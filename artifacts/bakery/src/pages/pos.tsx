@@ -657,9 +657,9 @@ export default function POSPage() {
                 <div className="text-xs text-muted-foreground">Receipt #{receiptData.receiptNumber}</div>
                 <div className="text-xs text-muted-foreground">{formatDateTime(receiptData.soldAt)}</div>
               </div>
-              <div className="space-y-1">
+              <div className="max-h-44 overflow-y-auto space-y-1 rounded border border-border px-2 py-1">
                 {receiptData.items.map((item, i) => (
-                  <div key={i} className="flex justify-between text-sm">
+                  <div key={i} className="flex justify-between text-sm py-0.5">
                     <span>{item.productName} x{item.quantity}</span>
                     <span>{formatUGX(item.subtotal)}</span>
                   </div>
