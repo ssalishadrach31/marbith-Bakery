@@ -17,7 +17,7 @@ import { Trash2, UserCheck, UserX, Pencil } from "lucide-react";
 
 async function apiFetch(path: string, options?: RequestInit) {
   const token = getToken();
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${import.meta.env.VITE_API_URL}/api${path}`, {
     ...options,
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options?.headers },
   });

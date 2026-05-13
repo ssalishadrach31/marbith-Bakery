@@ -44,7 +44,7 @@ export default function InventoryPage() {
     queryKey: [HISTORY_KEY, today],
     queryFn: async () => {
       const token = getToken();
-      const r = await fetch(`/api/inventory/history?date=${today}`, {
+      const r = await fetch(`${import.meta.env.VITE_API_URL}/api/inventory/history?date=${today}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!r.ok) return [];
