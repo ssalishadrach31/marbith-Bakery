@@ -10,7 +10,7 @@ import {
   Factory, ShoppingCart, Package, Wallet,
   Clock, RefreshCw, CheckCircle2,
   Truck, ChevronRight, Plus, Users,
-  IceCream, Coffee, Droplets, ChevronLeft,
+  IceCream, Coffee, Droplets, ChevronLeft, GlassWater,
   CalendarDays, ArrowRight, ChevronDown,
   History, MoonStar, X, AlertCircle, Banknote, Sunrise,
 } from "lucide-react";
@@ -597,6 +597,7 @@ export default function StaffDashboardPage() {
   const juiceEntries = buildCountEntries("juice");
   const coffeeEntries = buildCountEntries("coffee");
   const teaEntries = buildCountEntries("tea");
+  const drinkEntries = buildCountEntries("drink");
 
   // Drinks sold today via POS
   const drinksSoldToday = sales.byProduct.filter((p: any) =>
@@ -615,9 +616,10 @@ export default function StaffDashboardPage() {
   const juiceRevenue = calcRevenue(juiceEntries);
   const coffeeRevenue = calcRevenue(coffeeEntries);
   const teaRevenue = calcRevenue(teaEntries);
+  const drinkCountRevenue = calcRevenue(drinkEntries);
   const approvedExpensesTotal = expenses?.approvedTotal ?? 0;
   const pendingExpensesByPerson: Array<{ submittedBy: string; total: number; count: number }> = expenses?.pendingByPerson ?? [];
-  const grandTotal = sales.totalRevenue + iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue - approvedExpensesTotal;
+  const grandTotal = sales.totalRevenue + iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue + drinkCountRevenue - approvedExpensesTotal;
 
   return (
     <div className="space-y-5">
@@ -1222,6 +1224,16 @@ export default function StaffDashboardPage() {
         isSaving={saveCountMutation.isPending}
       />
 
+      {/* ── DRINKS COUNT (Soda, Water, Energy Drinks, etc.) ── */}
+      <CountSection
+        title="Drinks Count — Soda, Water & Energy Drinks"
+        icon={<GlassWater className="h-4 w-4" />}
+        entries={drinkEntries}
+        color="cyan"
+        onSave={handleSaveCount}
+        isSaving={saveCountMutation.isPending}
+      />
+
       {/* ── COUNTED SALES SUMMARY (always visible) ── */}
       <Card className="border-primary/20">
         <CardContent className="p-5">
@@ -1286,10 +1298,24 @@ export default function StaffDashboardPage() {
                 )}
               </div>
             </div>
-            {(iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0 || teaRevenue > 0) && (
+            <div className="flex justify-between items-center px-3 py-2 bg-cyan-50 border border-cyan-100 rounded-lg text-sm">
+              <span className="flex items-center gap-2 text-cyan-700">
+                <GlassWater className="h-4 w-4" /> Drinks (Soda, Water, Energy)
+              </span>
+              <div className="text-right">
+                {drinkCountRevenue > 0 ? (
+                  <span className="font-bold text-cyan-700">{formatUGX(drinkCountRevenue)}</span>
+                ) : drinkEntries.some(e => e.opening !== undefined) ? (
+                  <span className="text-xs text-blue-500 flex items-center gap-1"><ArrowRight className="h-3 w-3" /> Enter closing count</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">No counts yet</span>
+                )}
+              </div>
+            </div>
+            {(iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0 || teaRevenue > 0 || drinkCountRevenue > 0) && (
               <div className="flex justify-between items-center px-3 py-2.5 bg-primary/5 border border-primary/20 rounded-lg font-bold mt-1">
                 <span className="text-sm">Total Counted Sales</span>
-                <span className="text-primary">{formatUGX(iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue)}</span>
+                <span className="text-primary">{formatUGX(iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue + drinkCountRevenue)}</span>
               </div>
             )}
           </div>
@@ -1501,7 +1527,7 @@ export default function StaffDashboardPage() {
           )}
 
           {/* Grand Total (POS + Counted) */}
-          {(sales.totalRevenue > 0 || iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0 || teaRevenue > 0) && (
+          {(sales.totalRevenue > 0 || iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0 || teaRevenue > 0 || drinkCountRevenue > 0) && (
             <div className="mb-4 space-y-1.5">
               {sales.totalRevenue > 0 && (
                 <div className="flex justify-between text-sm px-3 py-2 bg-purple-50 border border-purple-100 rounded-lg">
@@ -1531,6 +1557,12 @@ export default function StaffDashboardPage() {
                 <div className="flex justify-between text-sm px-3 py-2 bg-green-50 border border-green-100 rounded-lg">
                   <span className="flex items-center gap-2"><Coffee className="h-4 w-4 text-green-500" /> Tea (counted)</span>
                   <span className="font-bold text-green-700">{formatUGX(teaRevenue)}</span>
+                </div>
+              )}
+              {drinkCountRevenue > 0 && (
+                <div className="flex justify-between text-sm px-3 py-2 bg-cyan-50 border border-cyan-100 rounded-lg">
+                  <span className="flex items-center gap-2"><GlassWater className="h-4 w-4 text-cyan-500" /> Drinks — Soda, Water & Energy (counted)</span>
+                  <span className="font-bold text-cyan-700">{formatUGX(drinkCountRevenue)}</span>
                 </div>
               )}
               {approvedExpensesTotal > 0 && (

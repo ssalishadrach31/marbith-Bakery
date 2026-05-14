@@ -11,6 +11,8 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDateTime, getToken } from "@/lib/auth";
 import { Plus, Minus, PackagePlus, PackageMinus, AlertTriangle, History, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
 
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
+
 type AdjustMode = "in" | "out";
 
 interface AdjLog {
