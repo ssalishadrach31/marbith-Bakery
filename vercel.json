@@ -1,0 +1,8 @@
+{
+  "buildCommand": "pnpm --filter @workspace/bakery run build",
+  "outputDirectory": "artifacts/bakery/dist",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

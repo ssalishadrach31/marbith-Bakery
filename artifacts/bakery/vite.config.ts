@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    runtimeErrorOverlay(),
+    ...(process.env.REPL_ID !== undefined ? [runtimeErrorOverlay()] : []),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [
@@ -38,6 +38,7 @@ export default defineConfig({
   },
   server: {
     host: "0.0.0.0",
+    port: process.env.PORT ? parseInt(process.env.PORT) : 5173,
     allowedHosts: true,
     fs: {
       strict: true,
