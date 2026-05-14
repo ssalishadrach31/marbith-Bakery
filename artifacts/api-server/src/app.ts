@@ -25,7 +25,15 @@ app.use(
     },
   }),
 );
-app.use(cors());
+const allowedOrigin = process.env.CORS_ORIGIN;
+app.use(
+  cors({
+    origin: allowedOrigin
+      ? allowedOrigin.split(",").map((o) => o.trim())
+      : true,
+    credentials: true,
+  }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
