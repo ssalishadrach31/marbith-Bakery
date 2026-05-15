@@ -142,7 +142,7 @@ router.get("/attendance/self-today", async (req, res): Promise<void> => {
   const user = getJwtUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const today = new Date().toISOString().split("T")[0];
-  const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.name, user.name));
+  const [emp] = await db.select().from(employeesTable).where(sql`LOWER(${employeesTable.name}) = LOWER(${user.name})`);
   if (!emp) { res.json(null); return; }
   const records = await db.select().from(attendanceTable)
     .where(eq(attendanceTable.employeeId, emp.id))
@@ -161,8 +161,8 @@ router.get("/attendance/self-today", async (req, res): Promise<void> => {
 router.post("/attendance/self-check-in", async (req, res): Promise<void> => {
   const user = getJwtUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.name, user.name));
-  if (!emp) { res.status(404).json({ error: "No employee record found for your account. Ask admin to add you to the employees list." }); return; }
+  const [emp] = await db.select().from(employeesTable).where(sql`LOWER(${employeesTable.name}) = LOWER(${user.name})`);
+  if (!emp) { res.status(404).json({ error: `No employee record found for "${user.name}". Ask admin to add you to the employees list.` }); return; }
   const checkInTime = new Date();
   const today = checkInTime.toISOString().split("T")[0];
   const existing = await db.select().from(attendanceTable)

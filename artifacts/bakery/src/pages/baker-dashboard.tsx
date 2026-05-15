@@ -21,6 +21,8 @@ import {
   ChevronRight,
   Pencil,
   History,
+  Sunrise,
+  MoonStar,
 } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
@@ -81,6 +83,25 @@ export default function BakerDashboardPage() {
 
   const [editRecord, setEditRecord] = useState<EditState | null>(null);
 
+  // ── Self check-in / check-out ─────────────────────────────────────────────
+  const { data: selfAttendance, refetch: refetchSelfAttendance } = useQuery<any>({
+    queryKey: ["attendance-self-today"],
+    queryFn: () => apiFetch("/attendance/self-today"),
+    refetchInterval: 60_000,
+  });
+
+  const selfCheckInMutation = useMutation({
+    mutationFn: () => apiFetch("/attendance/self-check-in", { method: "POST" }),
+    onSuccess: () => { refetchSelfAttendance(); toast({ title: "Checked in!", description: "Your arrival time has been recorded." }); },
+    onError: (err: any) => toast({ title: "Check-in failed", description: err.message, variant: "destructive" }),
+  });
+
+  const selfCheckOutMutation = useMutation({
+    mutationFn: (id: number) => apiFetch(`/attendance/self-check-out/${id}`, { method: "PUT" }),
+    onSuccess: () => { refetchSelfAttendance(); toast({ title: "Checked out!", description: "Your shift has been recorded." }); },
+    onError: (err: any) => toast({ title: "Check-out failed", description: err.message, variant: "destructive" }),
+  });
+
   const editMutation = useMutation({
     mutationFn: ({ id, ...body }: EditState) =>
       apiFetch(`/production/${id}`, {
@@ -137,6 +158,53 @@ export default function BakerDashboardPage() {
           <div className="font-bold text-orange-700 text-lg">{todaySummary?.totalUnits ?? 0}</div>
         </div>
       </div>
+
+      {/* Check-in / Check-out widget */}
+      {(() => {
+        const checkedIn = !!selfAttendance;
+        const checkedOut = !!selfAttendance?.checkOut;
+        const fmt12 = (iso: string) => new Date(iso).toLocaleTimeString("en-UG", { hour: "2-digit", minute: "2-digit", hour12: true });
+        const hrs = selfAttendance?.hoursWorked ? `${Number(selfAttendance.hoursWorked).toFixed(1)} hrs` : null;
+        if (!checkedIn) return (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-200 bg-amber-50">
+            <Sunrise className="h-5 w-5 text-amber-500 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-amber-800">Not checked in yet</p>
+              <p className="text-xs text-amber-600">Tap the button to record your arrival time</p>
+            </div>
+            <Button size="sm" className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white"
+              onClick={() => selfCheckInMutation.mutate()} disabled={selfCheckInMutation.isPending}>
+              {selfCheckInMutation.isPending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Sunrise className="h-3.5 w-3.5" />}
+              <span className="ml-1.5">Check In</span>
+            </Button>
+          </div>
+        );
+        if (checkedIn && !checkedOut) return (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-green-200 bg-green-50">
+            <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-green-800">Checked in at {fmt12(selfAttendance.checkIn)}</p>
+              <p className="text-xs text-green-600">Shift in progress — tap to check out when done</p>
+            </div>
+            <Button size="sm" variant="outline" className="shrink-0 border-green-300 text-green-700 hover:bg-green-100"
+              onClick={() => selfCheckOutMutation.mutate(selfAttendance.id)} disabled={selfCheckOutMutation.isPending}>
+              {selfCheckOutMutation.isPending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <MoonStar className="h-3.5 w-3.5" />}
+              <span className="ml-1.5">Check Out</span>
+            </Button>
+          </div>
+        );
+        return (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-200 bg-slate-50">
+            <CheckCircle2 className="h-5 w-5 text-slate-400 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-700">Shift complete</p>
+              <p className="text-xs text-slate-500">
+                In {fmt12(selfAttendance.checkIn)} · Out {fmt12(selfAttendance.checkOut)}{hrs ? ` · ${hrs}` : ""}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── STOCK ALERTS ── */}
       <Card className={urgentItems.length > 0 ? "border-red-200" : totalLow > 0 ? "border-amber-200" : "border-green-200"}>

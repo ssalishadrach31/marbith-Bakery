@@ -18,8 +18,8 @@ A full-stack bakery management system for Marbith Bakery and Investments in Kamp
 |------|----------|----------|--------|
 | Admin | shadrachssali@gmail.com | admin123 | Full system access |
 | Admin | martha@marbithbakery.com | password123 | Full system access |
-| Staff | vivian@marbithbakery.com | — | Shift Dashboard + POS + Production + Expenses |
-| Cashier | sharon@marbithbakery.com | — | Shift Dashboard + POS + Expenses (same as Staff) |
+| Staff | vivian@marbithbakery.com | vivian123@ | Shift Dashboard + POS + Production + Expenses |
+| Cashier | sharon@marbithbakery.com | @sharon123 | Shift Dashboard + POS + Expenses (same as Staff) |
 | Baker | samuel@marbithbakery.com | 123@samuel | Kitchen Dashboard + Production + Expenses (no POS) |
 | Baker | kato@marbithbakery.com | kato123@ | Kitchen Dashboard + Production + Expenses (no POS) |
 | Rider | rider1 | rider123 | My Deliveries only |
