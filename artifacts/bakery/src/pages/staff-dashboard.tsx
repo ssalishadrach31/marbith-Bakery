@@ -349,8 +349,9 @@ export default function StaffDashboardPage() {
     staleTime: 30_000,
     refetchInterval: 120_000,
   });
-  const [showDrinkStockForm, setShowDrinkStockForm] = useState(false);
-  const [drinkStockForm, setDrinkStockForm] = useState({ productId: "", quantity: "", reason: "" });
+  const [drinkStockDialog, setDrinkStockDialog] = useState<{ productId: number; productName: string } | null>(null);
+  const [drinkStockQty, setDrinkStockQty] = useState("");
+  const [drinkStockNote, setDrinkStockNote] = useState("");
 
   // Cashier daily pay (admin only)
   const { data: dailyPayData = [], refetch: refetchDailyPay } = useQuery<any[]>({
@@ -583,8 +584,9 @@ export default function StaffDashboardPage() {
       refetchFullInventory();
       qc.invalidateQueries({ queryKey: ["full-inventory"] });
       toast({ title: "Stock Updated", description: `${result.productName}: now ${result.currentStock} in stock` });
-      setDrinkStockForm({ productId: "", quantity: "", reason: "" });
-      setShowDrinkStockForm(false);
+      setDrinkStockDialog(null);
+      setDrinkStockQty("");
+      setDrinkStockNote("");
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
@@ -1416,6 +1418,7 @@ export default function StaffDashboardPage() {
                               <th className="text-left py-2 px-3 font-medium text-muted-foreground">Drink</th>
                               <th className="text-center py-2 px-3 font-medium text-muted-foreground">In Stock</th>
                               <th className="text-center py-2 px-3 font-medium text-muted-foreground">Status</th>
+                              <th className="py-2 px-3"></th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1429,6 +1432,14 @@ export default function StaffDashboardPage() {
                                   ) : (
                                     <span className="text-xs bg-green-100 text-green-700 border border-green-200 rounded-full px-2 py-0.5 font-medium">OK</span>
                                   )}
+                                </td>
+                                <td className="py-2 px-2 text-right">
+                                  <button
+                                    onClick={() => { setDrinkStockDialog({ productId: d.productId, productName: d.productName }); setDrinkStockQty(""); setDrinkStockNote(""); }}
+                                    className="flex items-center gap-1 text-xs bg-green-100 text-green-700 hover:bg-green-200 border border-green-300 rounded-lg px-2 py-1 font-medium transition-colors"
+                                  >
+                                    <Plus className="h-3 w-3" /> Stock In
+                                  </button>
                                 </td>
                               </tr>
                             ))}
@@ -1450,6 +1461,7 @@ export default function StaffDashboardPage() {
                               <th className="text-left py-2 px-3 font-medium text-muted-foreground">Product</th>
                               <th className="text-center py-2 px-3 font-medium text-muted-foreground">In Stock</th>
                               <th className="text-center py-2 px-3 font-medium text-muted-foreground">Status</th>
+                              <th className="py-2 px-3"></th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1464,6 +1476,14 @@ export default function StaffDashboardPage() {
                                     <span className="text-xs bg-green-100 text-green-700 border border-green-200 rounded-full px-2 py-0.5 font-medium">OK</span>
                                   )}
                                 </td>
+                                <td className="py-2 px-2 text-right">
+                                  <button
+                                    onClick={() => { setDrinkStockDialog({ productId: d.productId, productName: d.productName }); setDrinkStockQty(""); setDrinkStockNote(""); }}
+                                    className="flex items-center gap-1 text-xs bg-green-100 text-green-700 hover:bg-green-200 border border-green-300 rounded-lg px-2 py-1 font-medium transition-colors"
+                                  >
+                                    <Plus className="h-3 w-3" /> Stock In
+                                  </button>
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -1473,61 +1493,55 @@ export default function StaffDashboardPage() {
                   )}
                 </>
               )}
-              {showDrinkStockForm ? (
-                <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
-                  <p className="text-sm font-medium">Record New Stock Received</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Drink</label>
-                      <Select value={drinkStockForm.productId} onValueChange={(v) => setDrinkStockForm({ ...drinkStockForm, productId: v })}>
-                        <SelectTrigger><SelectValue placeholder="Select drink" /></SelectTrigger>
-                        <SelectContent>
-                          {drinkStock.map((d) => (
-                            <SelectItem key={d.productId} value={String(d.productId)}>{d.productName}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+              <Dialog open={!!drinkStockDialog} onOpenChange={(open) => { if (!open) { setDrinkStockDialog(null); setDrinkStockQty(""); setDrinkStockNote(""); } }}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Plus className="h-5 w-5 text-green-600" /> Stock In — {drinkStockDialog?.productName}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="bg-green-50 text-green-800 text-sm rounded-lg px-4 py-3">
+                      Record stock received for this item — delivery arrived or restocked.
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Qty received</label>
+                      <Label>Quantity received</Label>
                       <Input
                         type="number"
                         min="1"
                         placeholder="e.g. 24"
-                        value={drinkStockForm.quantity}
-                        onChange={(e) => setDrinkStockForm({ ...drinkStockForm, quantity: e.target.value })}
+                        value={drinkStockQty}
+                        onChange={(e) => setDrinkStockQty(e.target.value)}
+                        className="mt-1"
+                        autoFocus
                       />
                     </div>
+                    <div>
+                      <Label>Note <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                      <Input
+                        placeholder="e.g. Delivery from supplier"
+                        value={drinkStockNote}
+                        onChange={(e) => setDrinkStockNote(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="outline" onClick={() => { setDrinkStockDialog(null); setDrinkStockQty(""); setDrinkStockNote(""); }}>Cancel</Button>
+                      <Button
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        disabled={!drinkStockQty || parseInt(drinkStockQty) <= 0 || adjustDrinkMutation.isPending}
+                        onClick={() => {
+                          const qty = parseInt(drinkStockQty);
+                          if (!drinkStockDialog || isNaN(qty) || qty <= 0) return;
+                          adjustDrinkMutation.mutate({ productId: drinkStockDialog.productId, quantity: qty, reason: drinkStockNote || "Stock received" });
+                        }}
+                      >
+                        {adjustDrinkMutation.isPending ? "Saving…" : "Add to Stock"}
+                      </Button>
+                    </div>
                   </div>
-                  <Input
-                    placeholder="Notes (optional, e.g. Delivery from supplier)"
-                    value={drinkStockForm.reason}
-                    onChange={(e) => setDrinkStockForm({ ...drinkStockForm, reason: e.target.value })}
-                  />
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setShowDrinkStockForm(false)}>Cancel</Button>
-                    <Button
-                      size="sm"
-                      disabled={!drinkStockForm.productId || !drinkStockForm.quantity || adjustDrinkMutation.isPending}
-                      onClick={() => {
-                        const qty = parseInt(drinkStockForm.quantity);
-                        if (isNaN(qty) || qty <= 0) return;
-                        adjustDrinkMutation.mutate({
-                          productId: parseInt(drinkStockForm.productId),
-                          quantity: qty,
-                          reason: drinkStockForm.reason || "Stock received",
-                        });
-                      }}
-                    >
-                      {adjustDrinkMutation.isPending ? "Saving..." : "Save Stock In"}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <Button size="sm" variant="outline" className="flex items-center gap-1.5" onClick={() => setShowDrinkStockForm(true)}>
-                  <Plus className="h-3.5 w-3.5" /> Record Stock Received
-                </Button>
-              )}
+                </DialogContent>
+              </Dialog>
             </>
           )}
         </CardContent>
