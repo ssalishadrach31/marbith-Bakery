@@ -365,7 +365,7 @@ export default function POSPage() {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-base">Products</CardTitle></CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-2 md:max-h-[30rem] md:overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-2 h-[55vh] overflow-y-auto overscroll-contain pr-1">
               {activeProducts.map((p) => (
                 <button
                   key={p.id}
@@ -388,7 +388,7 @@ export default function POSPage() {
             {cart.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">Tap products to add them</p>
             ) : (
-              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-52 overflow-y-auto overscroll-contain pr-1">
                 {cart.map((item) => (
                   <div key={item.productId} className="flex items-center gap-2 py-1.5 border-b border-border last:border-0">
                     <div className="flex-1 min-w-0">

@@ -147,7 +147,7 @@ function CountSection({
           </div>
         )}
 
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <div className="overflow-auto max-h-[55vh] overscroll-contain rounded-lg border border-border">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/40 border-b border-border">
@@ -1080,7 +1080,7 @@ export default function StaffDashboardPage() {
             {!collapsed["production"] && production.entries.length > 0 && (
               <details className="mt-3">
                 <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">View activity log</summary>
-                <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto">
+                <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto overscroll-contain">
                   {production.entries.map((e: any) => (
                     <div key={e.id} className="flex justify-between text-xs py-1 border-b border-border last:border-0">
                       <span className="text-muted-foreground"><span className="text-foreground font-medium">{e.recordedBy}</span> recorded {e.quantity} × {e.productName}{e.notes ? ` (${e.notes})` : ""}</span>
@@ -1130,7 +1130,7 @@ export default function StaffDashboardPage() {
               {receipts.entries.length > 0 && (
                 <details className="mb-3">
                   <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">View receipt log</summary>
-                  <div className="mt-2 space-y-1.5 max-h-36 overflow-y-auto">
+                  <div className="mt-2 space-y-1.5 max-h-36 overflow-y-auto overscroll-contain">
                     {receipts.entries.map((e: any) => (
                       <div key={e.id} className="flex justify-between text-xs py-1 border-b border-border last:border-0">
                         <span className="text-muted-foreground"><span className="text-foreground font-medium">{e.receivedBy}</span> confirmed {e.quantityReceived} × {e.productName}{e.notes ? ` (${e.notes})` : ""}</span>
