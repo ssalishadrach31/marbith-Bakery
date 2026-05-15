@@ -1,8 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { getToken, getUser, formatTime } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 import {
   AlertTriangle,
   Factory,
@@ -11,6 +19,8 @@ import {
   Clock,
   RefreshCw,
   ChevronRight,
+  Pencil,
+  History,
 } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
@@ -29,9 +39,20 @@ async function apiFetch(path: string, options?: RequestInit) {
   return res.status === 204 ? null : res.json();
 }
 
+type EntryType = "leftover" | "new_batch" | "closing";
+
+const ENTRY_TYPE_LABELS: Record<string, { label: string; badgeClass: string }> = {
+  leftover: { label: "Yesterday's Leftover", badgeClass: "bg-amber-100 text-amber-700 border-amber-300" },
+  new_batch: { label: "New Batch", badgeClass: "bg-green-100 text-green-700 border-green-300" },
+  closing: { label: "Closing Stock", badgeClass: "bg-blue-100 text-blue-700 border-blue-300" },
+};
+
+type EditState = { id: number; productName: string; entryType: EntryType; quantity: string; notes: string };
+
 export default function BakerDashboardPage() {
   const user = getUser();
   const [, navigate] = useLocation();
+  const { toast } = useToast();
 
   const today = new Date().toLocaleDateString("en-UG", {
     weekday: "long",
@@ -56,6 +77,22 @@ export default function BakerDashboardPage() {
     queryKey: ["production-today"],
     queryFn: () => apiFetch("/production/today-summary"),
     refetchInterval: 60_000,
+  });
+
+  const [editRecord, setEditRecord] = useState<EditState | null>(null);
+
+  const editMutation = useMutation({
+    mutationFn: ({ id, ...body }: EditState) =>
+      apiFetch(`/production/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ quantity: parseInt(body.quantity), entryType: body.entryType, notes: body.notes || null }),
+      }),
+    onSuccess: () => {
+      refetchSummary();
+      toast({ title: "Entry updated", description: "Production record corrected." });
+      setEditRecord(null);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   const productionEntries: any[] = todaySummary?.entries ?? [];
@@ -220,21 +257,47 @@ export default function BakerDashboardPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Editable entry log */}
               {productionEntries.length > 0 && (
-                <details className="mt-3">
-                  <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">View activity log</summary>
-                  <div className="mt-2 space-y-1.5 max-h-36 overflow-y-auto">
-                    {productionEntries.map((e: any) => (
-                      <div key={e.id} className="flex justify-between text-xs py-1 border-b border-border last:border-0">
-                        <span className="text-muted-foreground">
-                          <span className="text-foreground font-medium">{e.recordedBy}</span> — {e.quantity} × {e.productName}
-                          {e.notes ? ` (${e.notes})` : ""}
-                        </span>
-                        <span className="text-muted-foreground ml-3 shrink-0">{formatTime(e.producedAt)}</span>
-                      </div>
-                    ))}
+                <div className="mt-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <History className="h-3.5 w-3.5 text-muted-foreground" />
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Today's Entries — tap ✎ to correct a mistake</p>
                   </div>
-                </details>
+                  <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">
+                    {[...productionEntries].reverse().map((e: any) => {
+                      const meta = ENTRY_TYPE_LABELS[e.entryType] ?? { label: e.entryType, badgeClass: "" };
+                      const isOwn = e.recordedBy === user?.name;
+                      return (
+                        <div key={e.id} className="flex items-center gap-2 px-3 py-2.5 bg-background hover:bg-muted/30 transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="outline" className={`text-xs shrink-0 ${meta.badgeClass}`}>
+                                {meta.label}
+                              </Badge>
+                              <span className="font-medium text-sm">{e.productName}</span>
+                              <span className="text-sm font-bold text-orange-700">{e.quantity} units</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
+                              <span className={isOwn ? "font-medium text-primary" : "font-medium"}>{isOwn ? "You" : e.recordedBy}</span>
+                              <span>·</span>
+                              <span>{formatTime(e.producedAt)}</span>
+                              {e.notes && <span>· <em>{e.notes}</em></span>}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setEditRecord({ id: e.id, productName: e.productName ?? "", entryType: e.entryType as EntryType, quantity: String(e.quantity), notes: e.notes ?? "" })}
+                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary border border-border hover:border-primary rounded-md px-2 py-1 transition-colors shrink-0"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            Edit
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
             </>
           )}
@@ -292,6 +355,64 @@ export default function BakerDashboardPage() {
         </Card>
       )}
 
+      {/* ── EDIT PRODUCTION ENTRY DIALOG ── */}
+      <Dialog open={!!editRecord} onOpenChange={(open) => { if (!open) setEditRecord(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Correct Production Entry</DialogTitle>
+            {editRecord && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Editing: <span className="font-medium text-foreground">{editRecord.productName}</span>
+              </p>
+            )}
+          </DialogHeader>
+          {editRecord && (
+            <form
+              onSubmit={(e) => { e.preventDefault(); editMutation.mutate(editRecord); }}
+              className="space-y-4"
+            >
+              <div>
+                <Label>Entry Type</Label>
+                <Select value={editRecord.entryType} onValueChange={(v) => setEditRecord({ ...editRecord, entryType: v as EntryType })}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="leftover">Yesterday's Leftover</SelectItem>
+                    <SelectItem value="new_batch">New Batch (Chef)</SelectItem>
+                    <SelectItem value="closing">Evening Closing Stock</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>{editRecord.entryType === "closing" ? "Count remaining" : "Quantity"}</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={editRecord.quantity}
+                  onChange={(e) => setEditRecord({ ...editRecord, quantity: e.target.value })}
+                  className="mt-1"
+                  required
+                />
+              </div>
+              <div>
+                <Label>Notes (optional)</Label>
+                <Textarea
+                  value={editRecord.notes}
+                  onChange={(e) => setEditRecord({ ...editRecord, notes: e.target.value })}
+                  className="mt-1"
+                  rows={2}
+                  placeholder="Reason for correction..."
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={() => setEditRecord(null)}>Cancel</Button>
+                <Button type="submit" disabled={editMutation.isPending}>
+                  {editMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

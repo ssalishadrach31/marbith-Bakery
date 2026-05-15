@@ -661,7 +661,7 @@ export default function StaffDashboardPage() {
   const coffeeRevenue = calcRevenue(coffeeEntries);
   const teaRevenue = calcRevenue(teaEntries);
   const drinkCountRevenue = calcRevenue(drinkEntries);
-  const drinkProducts = (products ?? []).filter((p: any) => p.category === "drink" && p.isActive);
+  const drinkProducts = (products ?? []).filter((p: any) => ["drink", "milk"].includes(p.category) && p.isActive);
   const drinkStock = drinkProducts.map((p: any) => {
     const inv = (fullInventory ?? []).find((i: any) => i.productId === p.id);
     return {
@@ -1188,7 +1188,7 @@ export default function StaffDashboardPage() {
                       <Select value={receiptForm.productId} onValueChange={(v) => setReceiptForm({ ...receiptForm, productId: v })}>
                         <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
                         <SelectContent className="max-h-52 overflow-y-auto">
-                          {(products ?? []).filter((p: any) => p.isActive && p.category === "baked_goods").map((p: any) => (
+                          {(products ?? []).filter((p: any) => p.isActive && !["drink", "milk"].includes(p.category)).map((p: any) => (
                             <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -1539,7 +1539,7 @@ export default function StaffDashboardPage() {
               <span className="ml-auto text-sm font-bold text-primary">{formatUGX(sales.totalRevenue)}</span>
               <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${collapsed["sales"] ? "-rotate-90" : ""}`} />
             </button>
-            {!collapsed["sales"] && (sales.byProduct.filter((p: any) => !(products ?? []).find((pr: any) => pr.id === p.productId && pr.category === "drink")).length === 0 ? (
+            {!collapsed["sales"] && (sales.byProduct.filter((p: any) => !(products ?? []).find((pr: any) => pr.id === p.productId && ["drink", "milk"].includes(pr.category))).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No baked goods sold yet today</p>
             ) : (
               <div className="overflow-x-auto mb-3">
@@ -1553,7 +1553,7 @@ export default function StaffDashboardPage() {
                   </thead>
                   <tbody>
                     {sales.byProduct
-                      .filter((p: any) => !(products ?? []).find((pr: any) => pr.id === p.productId && pr.category === "drink"))
+                      .filter((p: any) => !(products ?? []).find((pr: any) => pr.id === p.productId && ["drink", "milk"].includes(pr.category)))
                       .map((p: any) => (
                         <tr key={p.productId} className="border-b border-border last:border-0">
                           <td className="py-2 font-medium">{p.productName}</td>
