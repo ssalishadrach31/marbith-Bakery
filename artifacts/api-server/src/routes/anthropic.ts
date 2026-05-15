@@ -50,19 +50,19 @@ async function buildSystemContext(): Promise<string> {
   `);
 
   const recentSales = await db.execute(sql`
-    SELECT s.id, s.total, s.payment_method, s.created_at
-    FROM sales s ORDER BY s.created_at DESC LIMIT 5
+    SELECT s.id, s.total_amount, s.payment_method, s.sold_at
+    FROM sales s ORDER BY s.sold_at DESC LIMIT 5
   `);
 
   const lowStock = await db.execute(sql`
-    SELECT p.name, i.current_stock, i.minimum_stock
+    SELECT p.name, i.current_stock, p.low_stock_threshold
     FROM inventory i JOIN products p ON p.id = i.product_id
-    WHERE i.current_stock <= i.minimum_stock
+    WHERE p.low_stock_threshold > 0 AND i.current_stock <= p.low_stock_threshold
     ORDER BY i.current_stock ASC LIMIT 10
   `);
 
   const pendingApprovals = await db.execute(sql`
-    SELECT action, target_user_id, requested_by, status, created_at
+    SELECT action_type, target_user_name, requested_by_name, status, created_at
     FROM pending_approvals ORDER BY created_at DESC LIMIT 5
   `);
 
@@ -88,13 +88,13 @@ RECENT ATTENDANCE (last 10):
 ${recentAttendance.rows.map((r: any) => `  ${r.name} — in: ${r.check_in ?? "none"}, out: ${r.check_out ?? "none"}, date: ${r.date}`).join("\n") || "  (none)"}
 
 RECENT SALES (last 5):
-${recentSales.rows.map((r: any) => `  Sale #${r.id}: ${r.total} UGX via ${r.payment_method} at ${r.created_at}`).join("\n") || "  (none)"}
+${recentSales.rows.map((r: any) => `  Sale #${r.id}: ${r.total_amount} UGX via ${r.payment_method} at ${r.sold_at}`).join("\n") || "  (none)"}
 
 LOW STOCK ALERTS:
-${lowStock.rows.map((r: any) => `  ${r.name}: ${r.current_stock}/${r.minimum_stock}`).join("\n") || "  (none — all stock levels OK)"}
+${lowStock.rows.map((r: any) => `  ${r.name}: ${r.current_stock} (threshold: ${r.low_stock_threshold})`).join("\n") || "  (none — all stock levels OK)"}
 
 PENDING APPROVALS:
-${pendingApprovals.rows.map((r: any) => `  ${r.action} for user ${r.target_user_id} by ${r.requested_by} — ${r.status}`).join("\n") || "  (none)"}
+${pendingApprovals.rows.map((r: any) => `  ${r.action_type} for ${r.target_user_name} by ${r.requested_by_name} — ${r.status}`).join("\n") || "  (none)"}
 
 MODULES AVAILABLE:
 Dashboard, Production (daily batches), Inventory (stock levels), POS Sales (cart-based), Online Orders, Deliveries (rider tracking), Wholesale (business customers), Employees, Attendance (check-in/out), Payments (MoMo/Airtel), Products, Public Order Form (/order), Rider Portal, Developer Tools
