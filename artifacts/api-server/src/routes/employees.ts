@@ -130,6 +130,71 @@ router.put("/attendance/:id/check-out", async (req, res): Promise<void> => {
   res.json({ ...updated, employeeName: emp?.name ?? "Unknown", checkIn: updated.checkIn.toISOString(), checkOut: updated.checkOut?.toISOString() ?? null });
 });
 
+// ── Self check-in / check-out (uses JWT name to find employee) ──
+
+function getJwtUser(req: any): { userId: number; role: string; name: string } | null {
+  const h = req.headers.authorization;
+  if (!h?.startsWith("Bearer ")) return null;
+  try { return jwt.verify(h.slice(7), JWT_SECRET) as any; } catch { return null; }
+}
+
+router.get("/attendance/self-today", async (req, res): Promise<void> => {
+  const user = getJwtUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const today = new Date().toISOString().split("T")[0];
+  const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.name, user.name));
+  if (!emp) { res.json(null); return; }
+  const records = await db.select().from(attendanceTable)
+    .where(eq(attendanceTable.employeeId, emp.id))
+    .orderBy(desc(attendanceTable.checkIn))
+    .limit(1);
+  const todayRecord = records.find((r) => r.date === today) ?? null;
+  if (!todayRecord) { res.json(null); return; }
+  res.json({
+    ...todayRecord,
+    employeeName: emp.name,
+    checkIn: todayRecord.checkIn.toISOString(),
+    checkOut: todayRecord.checkOut?.toISOString() ?? null,
+  });
+});
+
+router.post("/attendance/self-check-in", async (req, res): Promise<void> => {
+  const user = getJwtUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.name, user.name));
+  if (!emp) { res.status(404).json({ error: "No employee record found for your account. Ask admin to add you to the employees list." }); return; }
+  const checkInTime = new Date();
+  const today = checkInTime.toISOString().split("T")[0];
+  const existing = await db.select().from(attendanceTable)
+    .where(eq(attendanceTable.employeeId, emp.id))
+    .orderBy(desc(attendanceTable.checkIn)).limit(1);
+  if (existing.length && existing[0].date === today) {
+    res.status(409).json({ error: "Already checked in today" }); return;
+  }
+  const [record] = await db.insert(attendanceTable).values({
+    employeeId: emp.id, checkIn: checkInTime, date: today,
+  }).returning();
+  const timeStr = checkInTime.toLocaleTimeString("en-UG", { hour: "2-digit", minute: "2-digit", hour12: true });
+  notifyByRoles(["admin"], {
+    type: "attendance", title: "Employee Checked In",
+    message: `${emp.name} checked in at ${timeStr}`, relatedId: record.id,
+  });
+  res.status(201).json({ ...record, employeeName: emp.name, checkIn: record.checkIn.toISOString(), checkOut: null });
+});
+
+router.put("/attendance/self-check-out/:id", async (req, res): Promise<void> => {
+  const user = getJwtUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const checkOut = new Date();
+  const [record] = await db.select().from(attendanceTable).where(eq(attendanceTable.id, id));
+  if (!record) { res.status(404).json({ error: "Attendance record not found" }); return; }
+  const hoursWorked = (checkOut.getTime() - record.checkIn.getTime()) / (1000 * 60 * 60);
+  const [updated] = await db.update(attendanceTable).set({ checkOut, hoursWorked }).where(eq(attendanceTable.id, id)).returning();
+  res.json({ ...updated, employeeName: user.name, checkIn: updated.checkIn.toISOString(), checkOut: updated.checkOut!.toISOString() });
+});
+
 // ── Salary Payments ──
 router.get("/salary-payments", async (_req, res): Promise<void> => {
   const rows = await db

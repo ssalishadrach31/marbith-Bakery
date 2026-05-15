@@ -365,7 +365,7 @@ export default function POSPage() {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-base">Products</CardTitle></CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-2 max-h-[28rem] overflow-y-scroll pr-1">
               {activeProducts.map((p) => (
                 <button
                   key={p.id}

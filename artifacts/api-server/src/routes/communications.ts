@@ -151,21 +151,27 @@ router.post("/feedback", async (req, res): Promise<void> => {
 
 router.patch("/feedback/:id", async (req, res): Promise<void> => {
   const user = getUser(req);
-  if (!user || user.role !== "admin") { res.status(403).json({ error: "Admin only" }); return; }
+  if (!user || (user.role !== "admin" && user.role !== "developer")) { res.status(403).json({ error: "Admin only" }); return; }
   const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const { adminReply, status } = req.body;
-  const result = await db.execute(sql`
-    UPDATE feedback SET
-      admin_reply = COALESCE(${adminReply ?? null}, admin_reply),
-      replied_by  = CASE WHEN ${adminReply ?? null} IS NOT NULL THEN ${user.name} ELSE replied_by END,
-      replied_at  = CASE WHEN ${adminReply ?? null} IS NOT NULL THEN NOW() ELSE replied_at END,
-      status      = COALESCE(${status ?? null}, status)
-    WHERE id = ${id}
-    RETURNING id, subject, message, submitted_by_name, submitted_by_role, submitted_at,
-              is_anonymous, status, admin_reply, replied_by, replied_at
-  `);
-  if (!result.rows.length) { res.status(404).json({ error: "Not found" }); return; }
-  res.json(feedRow(result.rows[0] as any, true));
+  const replyVal = adminReply !== undefined && adminReply !== "" ? adminReply : null;
+  try {
+    const result = await db.execute(sql`
+      UPDATE feedback SET
+        admin_reply = CASE WHEN ${replyVal}::text IS NOT NULL THEN ${replyVal}::text ELSE admin_reply END,
+        replied_by  = CASE WHEN ${replyVal}::text IS NOT NULL THEN ${user.name} ELSE replied_by END,
+        replied_at  = CASE WHEN ${replyVal}::text IS NOT NULL THEN NOW() ELSE replied_at END,
+        status      = COALESCE(${status ?? null}, status)
+      WHERE id = ${id}
+      RETURNING id, subject, message, submitted_by_name, submitted_by_role, submitted_at,
+                is_anonymous, status, admin_reply, replied_by, replied_at
+    `);
+    if (!result.rows.length) { res.status(404).json({ error: "Feedback not found" }); return; }
+    res.json(feedRow(result.rows[0] as any, true));
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "Failed to update feedback" });
+  }
 });
 
 export default router;
