@@ -19,3 +19,5 @@ export * from "./shops";
 export * from "./shift-closings";
 export * from "./inventory-adjustments";
 export * from "./login-logs";
+export * from "./conversations";
+export * from "./messages";
