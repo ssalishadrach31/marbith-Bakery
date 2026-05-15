@@ -1,0 +1,26 @@
+User-agent: *
+Allow: /order
+Disallow: /dashboard
+Disallow: /staff-dashboard
+Disallow: /baker-dashboard
+Disallow: /production
+Disallow: /inventory
+Disallow: /pos
+Disallow: /orders
+Disallow: /deliveries
+Disallow: /wholesale
+Disallow: /employees
+Disallow: /payments
+Disallow: /products
+Disallow: /users
+Disallow: /expenses
+Disallow: /daily-report
+Disallow: /monthly-report
+Disallow: /sales-analytics
+Disallow: /rider-deliveries
+Disallow: /communications
+Disallow: /profile
+Disallow: /dev-tools
+Disallow: /login
+
+Sitemap: https://marbith-bakery-suite.replit.app/sitemap.xml
