@@ -1188,7 +1188,7 @@ export default function StaffDashboardPage() {
                       <Select value={receiptForm.productId} onValueChange={(v) => setReceiptForm({ ...receiptForm, productId: v })}>
                         <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
                         <SelectContent className="max-h-52 overflow-y-auto">
-                          {(products ?? []).filter((p: any) => p.isActive && !["drink", "milk"].includes(p.category)).map((p: any) => (
+                          {(products ?? []).filter((p: any) => p.isActive).map((p: any) => (
                             <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                           ))}
                         </SelectContent>
