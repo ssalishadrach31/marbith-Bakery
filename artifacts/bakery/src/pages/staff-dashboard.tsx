@@ -4,7 +4,10 @@ import { getToken, getUser, formatUGX, formatTime } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   Factory, ShoppingCart, Package, Wallet,
@@ -12,7 +15,7 @@ import {
   Truck, ChevronRight, Plus, Users,
   IceCream, Coffee, Droplets, ChevronLeft, GlassWater,
   CalendarDays, ArrowRight, ChevronDown,
-  History, MoonStar, X, AlertCircle, Banknote, Sunrise,
+  History, MoonStar, X, AlertCircle, Banknote, Sunrise, Pencil, Milk,
 } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
@@ -586,6 +589,34 @@ export default function StaffDashboardPage() {
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
+  // ── Edit production entry ──────────────────────────────────────────────────
+  type EditProdState = { id: number; productName: string; entryType: string; quantity: string; notes: string };
+  const [editProd, setEditProd] = useState<EditProdState | null>(null);
+  const editProdMutation = useMutation({
+    mutationFn: ({ id, ...body }: EditProdState) =>
+      apiFetch(`/production/${id}`, { method: "PATCH", body: JSON.stringify({ quantity: parseInt(body.quantity), entryType: body.entryType, notes: body.notes || null }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["staff-dashboard"] });
+      toast({ title: "Production entry updated" });
+      setEditProd(null);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  // ── Edit receipt entry ─────────────────────────────────────────────────────
+  type EditReceiptState = { id: number; productName: string; quantityReceived: string; notes: string };
+  const [editReceipt, setEditReceipt] = useState<EditReceiptState | null>(null);
+  const editReceiptMutation = useMutation({
+    mutationFn: ({ id, ...body }: EditReceiptState) =>
+      apiFetch(`/shop-receipts/${id}`, { method: "PATCH", body: JSON.stringify({ quantityReceived: parseInt(body.quantityReceived), notes: body.notes || null }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["staff-dashboard"] });
+      toast({ title: "Receipt entry updated" });
+      setEditReceipt(null);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -643,9 +674,9 @@ export default function StaffDashboardPage() {
   const teaEntries = buildCountEntries("tea");
   const drinkEntries = buildCountEntries("drink");
 
-  // Drinks sold today via POS
+  // Drinks sold today via POS (includes both sodas and milk)
   const drinksSoldToday = sales.byProduct.filter((p: any) =>
-    (products ?? []).find((pr: any) => pr.id === p.productId && pr.category === "drink")
+    (products ?? []).find((pr: any) => pr.id === p.productId && ["drink", "milk"].includes(pr.category))
   );
   const drinkRevenue = drinksSoldToday.reduce((s: number, p: any) => s + (p.revenue ?? 0), 0);
 
@@ -661,18 +692,23 @@ export default function StaffDashboardPage() {
   const coffeeRevenue = calcRevenue(coffeeEntries);
   const teaRevenue = calcRevenue(teaEntries);
   const drinkCountRevenue = calcRevenue(drinkEntries);
-  const drinkProducts = (products ?? []).filter((p: any) => ["drink", "milk"].includes(p.category) && p.isActive);
-  const drinkStock = drinkProducts.map((p: any) => {
-    const inv = (fullInventory ?? []).find((i: any) => i.productId === p.id);
-    return {
-      productId: p.id as number,
-      productName: p.name as string,
-      price: p.price as number,
-      currentStock: (inv?.currentStock ?? 0) as number,
-      lowStockThreshold: (p.lowStockThreshold ?? 5) as number,
-      isLow: ((inv?.currentStock ?? 0) as number) <= ((p.lowStockThreshold ?? 5) as number),
-    };
-  });
+  function buildDrinkStock(category: string) {
+    return (products ?? []).filter((p: any) => p.category === category && p.isActive).map((p: any) => {
+      const inv = (fullInventory ?? []).find((i: any) => i.productId === p.id);
+      return {
+        productId: p.id as number,
+        productName: p.name as string,
+        price: p.price as number,
+        currentStock: (inv?.currentStock ?? 0) as number,
+        lowStockThreshold: (p.lowStockThreshold ?? 5) as number,
+        isLow: ((inv?.currentStock ?? 0) as number) <= ((p.lowStockThreshold ?? 5) as number),
+      };
+    });
+  }
+  const sodaStock = buildDrinkStock("drink");
+  const milkStock = buildDrinkStock("milk");
+  const drinkStock = [...sodaStock, ...milkStock];
+  const drinkProducts = drinkStock; // keep for compatibility
   const lowDrinkCount = drinkStock.filter((d) => d.isLow).length;
   const approvedExpensesTotal = expenses?.approvedTotal ?? 0;
   const pendingExpensesByPerson: Array<{ submittedBy: string; total: number; count: number }> = expenses?.pendingByPerson ?? [];
@@ -1113,13 +1149,22 @@ export default function StaffDashboardPage() {
               </div>
             ))}
             {!collapsed["production"] && production.entries.length > 0 && (
-              <details className="mt-3">
-                <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">View activity log</summary>
-                <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto overscroll-contain">
-                  {production.entries.map((e: any) => (
-                    <div key={e.id} className="flex justify-between text-xs py-1 border-b border-border last:border-0">
-                      <span className="text-muted-foreground"><span className="text-foreground font-medium">{e.recordedBy}</span> recorded {e.quantity} × {e.productName}{e.notes ? ` (${e.notes})` : ""}</span>
-                      <span className="text-muted-foreground ml-3 shrink-0">{formatTime(e.producedAt)}</span>
+              <details className="mt-3" open>
+                <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground mb-2">Activity log — tap ✎ to correct a mistake</summary>
+                <div className="space-y-1 rounded-lg border border-border overflow-hidden">
+                  {[...production.entries].reverse().map((e: any) => (
+                    <div key={e.id} className="flex items-center gap-2 px-3 py-2 border-b border-border last:border-0 bg-background hover:bg-muted/20">
+                      <div className="flex-1 min-w-0 text-xs">
+                        <span className="font-medium text-foreground">{e.recordedBy}</span>
+                        <span className="text-muted-foreground"> · {e.quantity} × {e.productName}{e.notes ? ` (${e.notes})` : ""}</span>
+                        <span className="text-muted-foreground ml-2">{formatTime(e.producedAt)}</span>
+                      </div>
+                      <button
+                        onClick={() => setEditProd({ id: e.id, productName: e.productName ?? "", entryType: e.entryType ?? "new_batch", quantity: String(e.quantity), notes: e.notes ?? "" })}
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary border border-border hover:border-primary rounded-md px-2 py-1 transition-colors shrink-0"
+                      >
+                        <Pencil className="h-3 w-3" /> Edit
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -1163,13 +1208,22 @@ export default function StaffDashboardPage() {
                 </div>
               )}
               {receipts.entries.length > 0 && (
-                <details className="mb-3">
-                  <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">View receipt log</summary>
-                  <div className="mt-2 space-y-1.5 max-h-36 overflow-y-auto overscroll-contain">
-                    {receipts.entries.map((e: any) => (
-                      <div key={e.id} className="flex justify-between text-xs py-1 border-b border-border last:border-0">
-                        <span className="text-muted-foreground"><span className="text-foreground font-medium">{e.receivedBy}</span> confirmed {e.quantityReceived} × {e.productName}{e.notes ? ` (${e.notes})` : ""}</span>
-                        <span className="text-muted-foreground ml-3 shrink-0">{formatTime(e.receivedAt)}</span>
+                <details className="mb-3" open>
+                  <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground mb-2">Receipt log — tap ✎ to correct a mistake</summary>
+                  <div className="space-y-1 rounded-lg border border-border overflow-hidden">
+                    {[...receipts.entries].reverse().map((e: any) => (
+                      <div key={e.id} className="flex items-center gap-2 px-3 py-2 border-b border-border last:border-0 bg-background hover:bg-muted/20">
+                        <div className="flex-1 min-w-0 text-xs">
+                          <span className="font-medium text-foreground">{e.receivedBy}</span>
+                          <span className="text-muted-foreground"> · {e.quantityReceived} × {e.productName}{e.notes ? ` (${e.notes})` : ""}</span>
+                          <span className="text-muted-foreground ml-2">{formatTime(e.receivedAt)}</span>
+                        </div>
+                        <button
+                          onClick={() => setEditReceipt({ id: e.id, productName: e.productName ?? "", quantityReceived: String(e.quantityReceived), notes: e.notes ?? "" })}
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary border border-border hover:border-primary rounded-md px-2 py-1 transition-colors shrink-0"
+                        >
+                          <Pencil className="h-3 w-3" /> Edit
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -1333,7 +1387,7 @@ export default function StaffDashboardPage() {
         <CardContent className="p-5">
           <button className="w-full flex items-center gap-2 mb-3 text-left" onClick={() => toggleSection("fridge-drinks")}>
             <GlassWater className="h-4 w-4 text-cyan-600" />
-            <h2 className="font-semibold">Drinks Fridge Stock — Soda, Water &amp; Energy</h2>
+            <h2 className="font-semibold">Drinks Fridge Stock</h2>
             {lowDrinkCount > 0 && (
               <span className="ml-auto text-xs bg-red-100 text-red-700 border border-red-200 rounded-full px-2 py-0.5 shrink-0">
                 {lowDrinkCount} low
@@ -1345,35 +1399,79 @@ export default function StaffDashboardPage() {
             <>
               {drinkStock.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-3">
-                  No drink products found. Add drinks in the Products page with category "drink".
+                  No drink products found. Add drinks in the Products page with category "drink" or "milk".
                 </p>
               ) : (
-                <div className="overflow-auto max-h-[55vh] overscroll-contain rounded-lg border border-border mb-3">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-muted/40 border-b border-border">
-                        <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Drink</th>
-                        <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">In Stock</th>
-                        <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {drinkStock.map((d) => (
-                        <tr key={d.productId} className={`border-t border-border ${d.isLow ? "bg-red-50/60" : ""}`}>
-                          <td className="py-2.5 px-3 font-medium">{d.productName}</td>
-                          <td className="py-2.5 px-3 text-center font-bold text-lg">{d.currentStock}</td>
-                          <td className="py-2.5 px-3 text-center">
-                            {d.isLow ? (
-                              <span className="text-xs bg-red-100 text-red-700 border border-red-200 rounded-full px-2 py-0.5 font-medium">Low Stock</span>
-                            ) : (
-                              <span className="text-xs bg-green-100 text-green-700 border border-green-200 rounded-full px-2 py-0.5 font-medium">OK</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  {/* Sodas / Energy / Water */}
+                  {sodaStock.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs font-semibold text-cyan-700 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                        <GlassWater className="h-3.5 w-3.5" /> Sodas, Water &amp; Energy Drinks
+                      </p>
+                      <div className="rounded-lg border border-border overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-muted/40 border-b border-border">
+                              <th className="text-left py-2 px-3 font-medium text-muted-foreground">Drink</th>
+                              <th className="text-center py-2 px-3 font-medium text-muted-foreground">In Stock</th>
+                              <th className="text-center py-2 px-3 font-medium text-muted-foreground">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sodaStock.map((d) => (
+                              <tr key={d.productId} className={`border-t border-border ${d.isLow ? "bg-red-50/60" : ""}`}>
+                                <td className="py-2 px-3 font-medium">{d.productName}</td>
+                                <td className="py-2 px-3 text-center font-bold text-lg">{d.currentStock}</td>
+                                <td className="py-2 px-3 text-center">
+                                  {d.isLow ? (
+                                    <span className="text-xs bg-red-100 text-red-700 border border-red-200 rounded-full px-2 py-0.5 font-medium">Low</span>
+                                  ) : (
+                                    <span className="text-xs bg-green-100 text-green-700 border border-green-200 rounded-full px-2 py-0.5 font-medium">OK</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                  {/* Milk / Dairy */}
+                  {milkStock.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                        <Milk className="h-3.5 w-3.5" /> Milk &amp; Dairy Products
+                      </p>
+                      <div className="rounded-lg border border-border overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-muted/40 border-b border-border">
+                              <th className="text-left py-2 px-3 font-medium text-muted-foreground">Product</th>
+                              <th className="text-center py-2 px-3 font-medium text-muted-foreground">In Stock</th>
+                              <th className="text-center py-2 px-3 font-medium text-muted-foreground">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {milkStock.map((d) => (
+                              <tr key={d.productId} className={`border-t border-border ${d.isLow ? "bg-red-50/60" : ""}`}>
+                                <td className="py-2 px-3 font-medium">{d.productName}</td>
+                                <td className="py-2 px-3 text-center font-bold text-lg">{d.currentStock}</td>
+                                <td className="py-2 px-3 text-center">
+                                  {d.isLow ? (
+                                    <span className="text-xs bg-red-100 text-red-700 border border-red-200 rounded-full px-2 py-0.5 font-medium">Low</span>
+                                  ) : (
+                                    <span className="text-xs bg-green-100 text-green-700 border border-green-200 rounded-full px-2 py-0.5 font-medium">OK</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
               {showDrinkStockForm ? (
                 <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
@@ -1916,6 +2014,69 @@ export default function StaffDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── EDIT PRODUCTION ENTRY DIALOG ── */}
+      <Dialog open={!!editProd} onOpenChange={(o) => { if (!o) setEditProd(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Correct Production Entry</DialogTitle>
+            {editProd && <p className="text-sm text-muted-foreground mt-1">Editing: <span className="font-medium text-foreground">{editProd.productName}</span></p>}
+          </DialogHeader>
+          {editProd && (
+            <form onSubmit={(e) => { e.preventDefault(); editProdMutation.mutate(editProd); }} className="space-y-4">
+              <div>
+                <Label>Entry Type</Label>
+                <Select value={editProd.entryType} onValueChange={(v) => setEditProd({ ...editProd, entryType: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="leftover">Yesterday's Leftover</SelectItem>
+                    <SelectItem value="new_batch">New Batch (Chef)</SelectItem>
+                    <SelectItem value="closing">Evening Closing Stock</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Quantity</Label>
+                <Input type="number" min="0" value={editProd.quantity} onChange={(e) => setEditProd({ ...editProd, quantity: e.target.value })} className="mt-1" required />
+              </div>
+              <div>
+                <Label>Notes (optional)</Label>
+                <Textarea value={editProd.notes} onChange={(e) => setEditProd({ ...editProd, notes: e.target.value })} className="mt-1" rows={2} placeholder="Reason for correction..." />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={() => setEditProd(null)}>Cancel</Button>
+                <Button type="submit" disabled={editProdMutation.isPending}>{editProdMutation.isPending ? "Saving..." : "Save Changes"}</Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── EDIT RECEIPT ENTRY DIALOG ── */}
+      <Dialog open={!!editReceipt} onOpenChange={(o) => { if (!o) setEditReceipt(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Correct Goods Received Entry</DialogTitle>
+            {editReceipt && <p className="text-sm text-muted-foreground mt-1">Editing: <span className="font-medium text-foreground">{editReceipt.productName}</span></p>}
+          </DialogHeader>
+          {editReceipt && (
+            <form onSubmit={(e) => { e.preventDefault(); editReceiptMutation.mutate(editReceipt); }} className="space-y-4">
+              <div>
+                <Label>Quantity Received</Label>
+                <Input type="number" min="0" value={editReceipt.quantityReceived} onChange={(e) => setEditReceipt({ ...editReceipt, quantityReceived: e.target.value })} className="mt-1" required />
+              </div>
+              <div>
+                <Label>Notes (optional)</Label>
+                <Textarea value={editReceipt.notes} onChange={(e) => setEditReceipt({ ...editReceipt, notes: e.target.value })} className="mt-1" rows={2} placeholder="Reason for correction..." />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={() => setEditReceipt(null)}>Cancel</Button>
+                <Button type="submit" disabled={editReceiptMutation.isPending}>{editReceiptMutation.isPending ? "Saving..." : "Save Changes"}</Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -86,4 +86,29 @@ router.post("/shop-receipts", async (req, res): Promise<void> => {
   res.status(201).json({ ...record, productName: product?.name ?? "Unknown" });
 });
 
+// PATCH /api/shop-receipts/:id — correct a receipt entry
+router.patch("/shop-receipts/:id", async (req, res): Promise<void> => {
+  const user = getUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [existing] = await db.select().from(shopReceiptsTable).where(eq(shopReceiptsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Receipt entry not found" }); return; }
+
+  const newQty = req.body.quantityReceived !== undefined ? parseInt(req.body.quantityReceived, 10) : existing.quantityReceived;
+  const newNotes: string | null = req.body.notes !== undefined ? (req.body.notes || null) : existing.notes;
+
+  if (isNaN(newQty) || newQty < 0) { res.status(400).json({ error: "quantityReceived must be non-negative" }); return; }
+
+  const [updated] = await db.update(shopReceiptsTable)
+    .set({ quantityReceived: newQty, notes: newNotes })
+    .where(eq(shopReceiptsTable.id, id))
+    .returning();
+
+  const [product] = await db.select().from(productsTable).where(eq(productsTable.id, existing.productId));
+  res.json({ ...updated, productName: product?.name ?? "Unknown" });
+});
+
 export default router;
