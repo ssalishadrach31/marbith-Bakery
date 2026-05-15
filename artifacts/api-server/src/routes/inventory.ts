@@ -89,8 +89,15 @@ router.post("/inventory/:productId/adjust", async (req, res): Promise<void> => {
   const parsed = AdjustInventoryBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [inv] = await db.select().from(inventoryTable).where(eq(inventoryTable.productId, params.data.productId));
-  if (!inv) { res.status(404).json({ error: "Inventory not found" }); return; }
+  let [inv] = await db.select().from(inventoryTable).where(eq(inventoryTable.productId, params.data.productId));
+  if (!inv) {
+    // Auto-create inventory row for products that don't have one yet
+    const [product] = await db.select().from(productsTable).where(eq(productsTable.id, params.data.productId));
+    if (!product) { res.status(404).json({ error: "Product not found" }); return; }
+    [inv] = await db.insert(inventoryTable)
+      .values({ productId: params.data.productId, currentStock: 0, lastUpdated: new Date() })
+      .returning();
+  }
 
   const newStock = Math.max(0, inv.currentStock + parsed.data.quantity);
   const [updated] = await db.update(inventoryTable)
