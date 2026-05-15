@@ -135,18 +135,22 @@ router.post("/feedback", async (req, res): Promise<void> => {
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
   const { subject, message, isAnonymous } = req.body;
   if (!subject?.trim() || !message?.trim()) { res.status(400).json({ error: "subject and message are required" }); return; }
-  const result = await db.execute(sql`
-    INSERT INTO feedback (subject, message, submitted_by_name, submitted_by_role, is_anonymous)
-    VALUES (${subject.trim()}, ${message.trim()}, ${user.name}, ${user.role}, ${isAnonymous ? true : false})
-    RETURNING id, subject, message, submitted_by_name, submitted_by_role, submitted_at, is_anonymous, status,
-              admin_reply, replied_by, replied_at
-  `);
-  notifyByRoles(["admin"], {
-    type: "system",
-    title: "New Staff Feedback",
-    message: `${isAnonymous ? "Anonymous" : user.name} submitted feedback: "${subject.trim()}"`,
-  }).catch(() => {});
-  res.status(201).json(feedRow(result.rows[0] as any, false));
+  try {
+    const result = await db.execute(sql`
+      INSERT INTO feedback (subject, message, submitted_by_name, submitted_by_role, is_anonymous)
+      VALUES (${subject.trim()}, ${message.trim()}, ${user.name}, ${user.role}, ${isAnonymous ? true : false})
+      RETURNING id, subject, message, submitted_by_name, submitted_by_role, submitted_at, is_anonymous, status,
+                admin_reply, replied_by, replied_at
+    `);
+    notifyByRoles(["admin"], {
+      type: "system",
+      title: "New Staff Feedback",
+      message: `${isAnonymous ? "Anonymous" : user.name} submitted feedback: "${subject.trim()}"`,
+    }).catch(() => {});
+    res.status(201).json(feedRow(result.rows[0] as any, false));
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "Failed to save feedback" });
+  }
 });
 
 router.patch("/feedback/:id", async (req, res): Promise<void> => {
