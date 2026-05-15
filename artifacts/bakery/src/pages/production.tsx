@@ -61,7 +61,7 @@ async function apiFetch(path: string, options?: RequestInit) {
   return res.json();
 }
 
-type EditState = { id: number; entryType: EntryType; quantity: string; notes: string };
+type EditState = { id: number; productName: string; entryType: EntryType; quantity: string; notes: string };
 
 export default function ProductionPage() {
   const { data: products } = useListProducts();
@@ -257,11 +257,16 @@ export default function ProductionPage() {
 
       {/* Today's entry log */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <History className="h-4 w-4" />
-            Today's Entry Log
-          </CardTitle>
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <History className="h-4 w-4" />
+                Today's Team Entry Log
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">All entries recorded by the full production team — visible to everyone</p>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -270,24 +275,35 @@ export default function ProductionPage() {
             <div className="divide-y divide-border">
               {[...records].reverse().map((r) => {
                 const meta = getMeta(r.entryType);
+                const isOwn = r.recordedBy === user?.name;
                 return (
-                  <div key={r.id} className="flex items-center gap-3 py-2.5">
-                    <Badge variant="outline" className={`text-xs shrink-0 ${meta?.badgeClass ?? ""}`}>
-                      {meta?.label ?? r.entryType}
-                    </Badge>
-                    <span className="font-medium text-sm flex-1">{r.productName}</span>
-                    <span className="text-sm font-bold text-primary">{r.quantity}</span>
-                    <span className="text-xs text-muted-foreground hidden sm:block">{r.recordedBy}</span>
-                    <span className="text-xs text-muted-foreground hidden md:block">{formatDateTime(r.producedAt)}</span>
-                    {canEdit && (
-                      <button
-                        onClick={() => setEditRecord({ id: r.id, entryType: r.entryType as EntryType, quantity: String(r.quantity), notes: r.notes ?? "" })}
-                        className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                        title="Edit this entry"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+                  <div key={r.id} className="py-3 space-y-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className={`text-xs shrink-0 ${meta?.badgeClass ?? ""}`}>
+                        {meta?.label ?? r.entryType}
+                      </Badge>
+                      <span className="font-medium text-sm flex-1">{r.productName}</span>
+                      <span className="text-sm font-bold text-primary">{r.quantity} units</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className={`font-medium ${isOwn ? "text-primary" : "text-foreground"}`}>
+                          {isOwn ? "You" : r.recordedBy}
+                        </span>
+                        <span>·</span>
+                        <span>{formatDateTime(r.producedAt)}</span>
+                        {r.notes && <span>· <em>{r.notes}</em></span>}
+                      </div>
+                      {canEdit && (
+                        <button
+                          onClick={() => setEditRecord({ id: r.id, productName: r.productName ?? "", entryType: r.entryType as EntryType, quantity: String(r.quantity), notes: r.notes ?? "" })}
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary border border-border hover:border-primary rounded-md px-2 py-0.5 transition-colors shrink-0"
+                        >
+                          <Pencil className="h-3 w-3" />
+                          Edit
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -301,7 +317,10 @@ export default function ProductionPage() {
       {/* Edit dialog */}
       <Dialog open={!!editRecord} onOpenChange={(open) => { if (!open) setEditRecord(null); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Edit Production Entry</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Edit Production Entry</DialogTitle>
+            {editRecord && <p className="text-sm text-muted-foreground mt-1">Correcting: <span className="font-medium text-foreground">{editRecord.productName}</span></p>}
+          </DialogHeader>
           {editRecord && (
             <form
               onSubmit={(e) => { e.preventDefault(); editMutation.mutate(editRecord); }}
