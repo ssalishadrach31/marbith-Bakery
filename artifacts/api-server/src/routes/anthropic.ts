@@ -4,9 +4,13 @@ import { db } from "@workspace/db";
 import { conversations, messages } from "@workspace/db/schema";
 import { sql } from "drizzle-orm";
 import { eq, asc } from "drizzle-orm";
-import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { anthropic, isAvailable } from "@workspace/integrations-anthropic-ai";
 
 const router: IRouter = Router();
+
+router.get("/anthropic/status", (_req, res) => {
+  res.json({ available: isAvailable });
+});
 const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
 const ALLOWED_USERNAME = "shadrachssali@gmail.com";
 
@@ -197,7 +201,7 @@ router.post("/anthropic/conversations/:id/messages", developerOnly, async (req, 
   let fullResponse = "";
 
   try {
-    const stream = anthropic.messages.stream({
+    const stream = anthropic!.messages.stream({
       model: "claude-sonnet-4-6",
       max_tokens: 8192,
       system: systemContext,

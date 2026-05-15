@@ -977,6 +977,26 @@ function AIChatPanel() {
 
   const activeConv = convos.find((c) => c.id === activeConvId);
 
+  const { data: aiStatus } = useQuery<{ available: boolean }>({
+    queryKey: ["ai-status"],
+    queryFn: () => apiFetch("/anthropic/status"),
+    retry: false,
+  });
+
+  if (aiStatus && !aiStatus.available) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+        <Bot className="h-12 w-12 text-gray-300" />
+        <h3 className="font-semibold text-gray-600 text-lg">AI Assistant Not Configured</h3>
+        <p className="text-sm text-gray-500 max-w-sm">
+          The AI assistant requires an Anthropic API key. On Render, set the{" "}
+          <code className="bg-gray-100 px-1 rounded text-xs">ANTHROPIC_API_KEY</code> environment variable to enable it.
+        </p>
+        <p className="text-xs text-gray-400">All other features work normally.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-sm text-purple-800 bg-purple-50 border border-purple-200 rounded-lg px-4 py-3">
