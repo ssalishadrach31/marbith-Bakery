@@ -91,7 +91,7 @@ export default function ProductionPage() {
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  const activeProducts = products?.filter((p) => p.isActive) ?? [];
+  const activeProducts = products?.filter((p) => p.isActive && ["baked_goods", "snacks"].includes(p.category ?? "")) ?? [];
 
   function openForm(type: EntryType) {
     setActiveType(type);
