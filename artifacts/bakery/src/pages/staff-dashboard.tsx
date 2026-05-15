@@ -340,6 +340,15 @@ export default function StaffDashboardPage() {
     staleTime: 0,
   });
 
+  const { data: fullInventory, refetch: refetchFullInventory } = useQuery<any[]>({
+    queryKey: ["full-inventory"],
+    queryFn: () => apiFetch("/inventory"),
+    staleTime: 30_000,
+    refetchInterval: 120_000,
+  });
+  const [showDrinkStockForm, setShowDrinkStockForm] = useState(false);
+  const [drinkStockForm, setDrinkStockForm] = useState({ productId: "", quantity: "", reason: "" });
+
   // Cashier daily pay (admin only)
   const { data: dailyPayData = [], refetch: refetchDailyPay } = useQuery<any[]>({
     queryKey: ["daily-pay", todayStr],
@@ -564,6 +573,19 @@ export default function StaffDashboardPage() {
     saveCountMutation.mutate({ productId, countType, quantity, countDate: countsDate });
   }
 
+  const adjustDrinkMutation = useMutation({
+    mutationFn: ({ productId, quantity, reason }: { productId: number; quantity: number; reason: string }) =>
+      apiFetch(`/inventory/${productId}/adjust`, { method: "POST", body: JSON.stringify({ quantity, reason }) }),
+    onSuccess: (result: any) => {
+      refetchFullInventory();
+      qc.invalidateQueries({ queryKey: ["full-inventory"] });
+      toast({ title: "Stock Updated", description: `${result.productName}: now ${result.currentStock} in stock` });
+      setDrinkStockForm({ productId: "", quantity: "", reason: "" });
+      setShowDrinkStockForm(false);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -639,9 +661,22 @@ export default function StaffDashboardPage() {
   const coffeeRevenue = calcRevenue(coffeeEntries);
   const teaRevenue = calcRevenue(teaEntries);
   const drinkCountRevenue = calcRevenue(drinkEntries);
+  const drinkProducts = (products ?? []).filter((p: any) => p.category === "drink" && p.isActive);
+  const drinkStock = drinkProducts.map((p: any) => {
+    const inv = (fullInventory ?? []).find((i: any) => i.productId === p.id);
+    return {
+      productId: p.id as number,
+      productName: p.name as string,
+      price: p.price as number,
+      currentStock: (inv?.currentStock ?? 0) as number,
+      lowStockThreshold: (p.lowStockThreshold ?? 5) as number,
+      isLow: ((inv?.currentStock ?? 0) as number) <= ((p.lowStockThreshold ?? 5) as number),
+    };
+  });
+  const lowDrinkCount = drinkStock.filter((d) => d.isLow).length;
   const approvedExpensesTotal = expenses?.approvedTotal ?? 0;
   const pendingExpensesByPerson: Array<{ submittedBy: string; total: number; count: number }> = expenses?.pendingByPerson ?? [];
-  const grandTotal = sales.totalRevenue + iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue + drinkCountRevenue - approvedExpensesTotal;
+  const grandTotal = sales.totalRevenue + iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue - approvedExpensesTotal;
 
   return (
     <div className="space-y-5">
@@ -1293,15 +1328,112 @@ export default function StaffDashboardPage() {
         isSaving={saveCountMutation.isPending}
       />
 
-      {/* ── DRINKS COUNT (Soda, Water, Energy Drinks, etc.) ── */}
-      <CountSection
-        title="Drinks Count — Soda, Water & Energy Drinks"
-        icon={<GlassWater className="h-4 w-4" />}
-        entries={drinkEntries}
-        color="cyan"
-        onSave={handleSaveCount}
-        isSaving={saveCountMutation.isPending}
-      />
+      {/* ── DRINKS FRIDGE STOCK ── */}
+      <Card>
+        <CardContent className="p-5">
+          <button className="w-full flex items-center gap-2 mb-3 text-left" onClick={() => toggleSection("fridge-drinks")}>
+            <GlassWater className="h-4 w-4 text-cyan-600" />
+            <h2 className="font-semibold">Drinks Fridge Stock — Soda, Water &amp; Energy</h2>
+            {lowDrinkCount > 0 && (
+              <span className="ml-auto text-xs bg-red-100 text-red-700 border border-red-200 rounded-full px-2 py-0.5 shrink-0">
+                {lowDrinkCount} low
+              </span>
+            )}
+            <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${collapsed["fridge-drinks"] ? "-rotate-90" : ""}`} />
+          </button>
+          {!collapsed["fridge-drinks"] && (
+            <>
+              {drinkStock.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-3">
+                  No drink products found. Add drinks in the Products page with category "drink".
+                </p>
+              ) : (
+                <div className="overflow-auto max-h-[55vh] overscroll-contain rounded-lg border border-border mb-3">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/40 border-b border-border">
+                        <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Drink</th>
+                        <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">In Stock</th>
+                        <th className="text-center py-2.5 px-3 font-medium text-muted-foreground">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {drinkStock.map((d) => (
+                        <tr key={d.productId} className={`border-t border-border ${d.isLow ? "bg-red-50/60" : ""}`}>
+                          <td className="py-2.5 px-3 font-medium">{d.productName}</td>
+                          <td className="py-2.5 px-3 text-center font-bold text-lg">{d.currentStock}</td>
+                          <td className="py-2.5 px-3 text-center">
+                            {d.isLow ? (
+                              <span className="text-xs bg-red-100 text-red-700 border border-red-200 rounded-full px-2 py-0.5 font-medium">Low Stock</span>
+                            ) : (
+                              <span className="text-xs bg-green-100 text-green-700 border border-green-200 rounded-full px-2 py-0.5 font-medium">OK</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {showDrinkStockForm ? (
+                <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
+                  <p className="text-sm font-medium">Record New Stock Received</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Drink</label>
+                      <Select value={drinkStockForm.productId} onValueChange={(v) => setDrinkStockForm({ ...drinkStockForm, productId: v })}>
+                        <SelectTrigger><SelectValue placeholder="Select drink" /></SelectTrigger>
+                        <SelectContent>
+                          {drinkStock.map((d) => (
+                            <SelectItem key={d.productId} value={String(d.productId)}>{d.productName}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Qty received</label>
+                      <Input
+                        type="number"
+                        min="1"
+                        placeholder="e.g. 24"
+                        value={drinkStockForm.quantity}
+                        onChange={(e) => setDrinkStockForm({ ...drinkStockForm, quantity: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <Input
+                    placeholder="Notes (optional, e.g. Delivery from supplier)"
+                    value={drinkStockForm.reason}
+                    onChange={(e) => setDrinkStockForm({ ...drinkStockForm, reason: e.target.value })}
+                  />
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowDrinkStockForm(false)}>Cancel</Button>
+                    <Button
+                      size="sm"
+                      disabled={!drinkStockForm.productId || !drinkStockForm.quantity || adjustDrinkMutation.isPending}
+                      onClick={() => {
+                        const qty = parseInt(drinkStockForm.quantity);
+                        if (isNaN(qty) || qty <= 0) return;
+                        adjustDrinkMutation.mutate({
+                          productId: parseInt(drinkStockForm.productId),
+                          quantity: qty,
+                          reason: drinkStockForm.reason || "Stock received",
+                        });
+                      }}
+                    >
+                      {adjustDrinkMutation.isPending ? "Saving..." : "Save Stock In"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button size="sm" variant="outline" className="flex items-center gap-1.5" onClick={() => setShowDrinkStockForm(true)}>
+                  <Plus className="h-3.5 w-3.5" /> Record Stock Received
+                </Button>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ── COUNTED SALES SUMMARY (always visible) ── */}
       <Card className="border-primary/20">
@@ -1369,22 +1501,24 @@ export default function StaffDashboardPage() {
             </div>
             <div className="flex justify-between items-center px-3 py-2 bg-cyan-50 border border-cyan-100 rounded-lg text-sm">
               <span className="flex items-center gap-2 text-cyan-700">
-                <GlassWater className="h-4 w-4" /> Drinks (Soda, Water, Energy)
+                <GlassWater className="h-4 w-4" /> Drinks Fridge Stock
               </span>
               <div className="text-right">
-                {drinkCountRevenue > 0 ? (
-                  <span className="font-bold text-cyan-700">{formatUGX(drinkCountRevenue)}</span>
-                ) : drinkEntries.some(e => e.opening !== undefined) ? (
-                  <span className="text-xs text-blue-500 flex items-center gap-1"><ArrowRight className="h-3 w-3" /> Enter closing count</span>
+                {lowDrinkCount > 0 ? (
+                  <span className="text-xs bg-red-100 text-red-700 border border-red-200 rounded-full px-2 py-0.5">
+                    {lowDrinkCount} item{lowDrinkCount > 1 ? "s" : ""} low
+                  </span>
+                ) : drinkStock.length > 0 ? (
+                  <span className="text-xs text-green-600 font-medium">All stocked</span>
                 ) : (
-                  <span className="text-xs text-muted-foreground">No counts yet</span>
+                  <span className="text-xs text-muted-foreground">No drinks added</span>
                 )}
               </div>
             </div>
-            {(iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0 || teaRevenue > 0 || drinkCountRevenue > 0) && (
+            {(iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0 || teaRevenue > 0) && (
               <div className="flex justify-between items-center px-3 py-2.5 bg-primary/5 border border-primary/20 rounded-lg font-bold mt-1">
                 <span className="text-sm">Total Counted Sales</span>
-                <span className="text-primary">{formatUGX(iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue + drinkCountRevenue)}</span>
+                <span className="text-primary">{formatUGX(iceCreamRevenue + juiceRevenue + coffeeRevenue + teaRevenue)}</span>
               </div>
             )}
           </div>
@@ -1596,7 +1730,7 @@ export default function StaffDashboardPage() {
           )}
 
           {/* Grand Total (POS + Counted) */}
-          {(sales.totalRevenue > 0 || iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0 || teaRevenue > 0 || drinkCountRevenue > 0) && (
+          {(sales.totalRevenue > 0 || iceCreamRevenue > 0 || juiceRevenue > 0 || coffeeRevenue > 0 || teaRevenue > 0) && (
             <div className="mb-4 space-y-1.5">
               {sales.totalRevenue > 0 && (
                 <div className="flex justify-between text-sm px-3 py-2 bg-purple-50 border border-purple-100 rounded-lg">
@@ -1626,12 +1760,6 @@ export default function StaffDashboardPage() {
                 <div className="flex justify-between text-sm px-3 py-2 bg-green-50 border border-green-100 rounded-lg">
                   <span className="flex items-center gap-2"><Coffee className="h-4 w-4 text-green-500" /> Tea (counted)</span>
                   <span className="font-bold text-green-700">{formatUGX(teaRevenue)}</span>
-                </div>
-              )}
-              {drinkCountRevenue > 0 && (
-                <div className="flex justify-between text-sm px-3 py-2 bg-cyan-50 border border-cyan-100 rounded-lg">
-                  <span className="flex items-center gap-2"><GlassWater className="h-4 w-4 text-cyan-500" /> Drinks — Soda, Water & Energy (counted)</span>
-                  <span className="font-bold text-cyan-700">{formatUGX(drinkCountRevenue)}</span>
                 </div>
               )}
               {approvedExpensesTotal > 0 && (

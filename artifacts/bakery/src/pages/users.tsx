@@ -11,8 +11,17 @@ import { Switch } from "@/components/ui/switch";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Eye, EyeOff, Trash2, KeyRound, UserPlus, Copy, CheckCircle,
-  Clock, CheckCircle2, XCircle, ShieldAlert, Bell, Pencil,
+  Clock, CheckCircle2, XCircle, ShieldAlert, Bell, Pencil, History,
 } from "lucide-react";
+
+interface LoginLog {
+  id: number;
+  userId: number;
+  userName: string;
+  role: string;
+  loginAt: string;
+  ipAddress: string | null;
+}
 
 const DEVELOPER_USER_ID = 4;
 
@@ -167,7 +176,22 @@ export default function UsersPage() {
   const [reviewApprovalModal, setReviewApprovalModal] = useState<PendingApproval | null>(null);
   const [reviewNotes, setReviewNotes] = useState("");
 
-  const [tab, setTab] = useState<"users" | "requests">("users");
+  const [tab, setTab] = useState<"users" | "requests" | "activity">("users");
+
+  const { data: loginLogs = [] } = useQuery<LoginLog[]>({
+    queryKey: ["login-logs"],
+    queryFn: async () => {
+      const token = getToken();
+      const res = await fetch("/api/auth/login-logs", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to fetch login logs");
+      return res.json();
+    },
+    enabled: getUser()?.role === "admin",
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
 
   const [editModal, setEditModal] = useState<SystemUser | null>(null);
   const [editForm, setEditForm] = useState({ name: "", role: "cashier", jobTitle: "", username: "" });
@@ -437,6 +461,15 @@ export default function UsersPage() {
             </span>
           )}
         </button>
+        {getUser()?.role === "admin" && (
+          <button
+            onClick={() => setTab("activity")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${tab === "activity" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            <History className="h-3.5 w-3.5" />
+            Login Activity
+          </button>
+        )}
       </div>
 
       {/* ── USERS TAB ── */}
@@ -573,6 +606,61 @@ export default function UsersPage() {
             </Card>
           )}
         </div>
+      )}
+
+      {/* ── LOGIN ACTIVITY TAB ── */}
+      {tab === "activity" && (
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <History className="h-5 w-5 text-primary" />
+              <h2 className="font-semibold text-lg">Login Activity</h2>
+              <span className="ml-auto text-xs text-muted-foreground">Last 200 logins</span>
+            </div>
+            {loginLogs.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">No login activity recorded yet.</p>
+            ) : (
+              <div className="overflow-auto max-h-[65vh] overscroll-contain rounded-lg border border-border">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-muted/60 border-b border-border">
+                      <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Name</th>
+                      <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Role</th>
+                      <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">Time</th>
+                      <th className="text-left py-2.5 px-3 font-medium text-muted-foreground">IP Address</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loginLogs.map((log) => (
+                      <tr key={log.id} className="border-t border-border hover:bg-muted/30 transition-colors">
+                        <td className="py-2.5 px-3 font-medium">{log.userName}</td>
+                        <td className="py-2.5 px-3">
+                          <span className={`text-xs rounded-full px-2 py-0.5 font-medium border ${
+                            log.role === "admin" ? "bg-purple-100 text-purple-700 border-purple-200" :
+                            log.role === "baker" ? "bg-amber-100 text-amber-700 border-amber-200" :
+                            log.role === "rider" ? "bg-blue-100 text-blue-700 border-blue-200" :
+                            "bg-green-100 text-green-700 border-green-200"
+                          }`}>
+                            {log.role}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-muted-foreground">
+                          {new Date(log.loginAt).toLocaleString("en-UG", {
+                            day: "numeric", month: "short", year: "numeric",
+                            hour: "2-digit", minute: "2-digit",
+                          })}
+                        </td>
+                        <td className="py-2.5 px-3 text-muted-foreground font-mono text-xs">
+                          {log.ipAddress ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* ── DIALOGS ── */}
