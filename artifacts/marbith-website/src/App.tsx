@@ -512,7 +512,7 @@ export default function App() {
             <p className="text-amber-200/70 text-lg max-w-xl mx-auto">Got a question, a large order, or just want to say hello? Reach out — we'd love to hear from you.</p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+          <div className="grid md:grid-cols-2 gap-6 mb-12 max-w-2xl mx-auto">
             <div className="bg-white/5 border border-white/10 rounded-2xl p-7 text-center hover:bg-white/10 transition-colors">
               <div className="text-4xl mb-4">👤</div>
               <div className="text-amber-400 text-xs font-bold tracking-widest uppercase mb-2">General Manager</div>
@@ -524,20 +524,6 @@ export default function App() {
                   📲 +256 786 111030
                 </a>
                 <a href="mailto:martha@marbithbakery.com" className="text-amber-400 hover:text-amber-300 text-xs underline underline-offset-2">martha@marbithbakery.com</a>
-              </div>
-            </div>
-
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-7 text-center hover:bg-white/10 transition-colors">
-              <div className="text-4xl mb-4">💻</div>
-              <div className="text-amber-400 text-xs font-bold tracking-widest uppercase mb-2">Operations & Tech</div>
-              <h3 className="font-serif text-xl font-bold text-white mb-1">Shadrach Ssali</h3>
-              <p className="text-amber-200/60 text-xs mb-4">System, online orders, tech support</p>
-              <div className="flex flex-col gap-2 items-center">
-                <a href={`https://wa.me/${WA_SHADRACH}?text=Hello%20Marbith%20Bakery!`} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white text-sm font-bold px-5 py-2 rounded-full transition-colors wa-pulse">
-                  📲 +256 751 900731
-                </a>
-                <a href="mailto:ssalishadrach31@gmail.com" className="text-amber-400 hover:text-amber-300 text-xs underline underline-offset-2">ssalishadrach31@gmail.com</a>
               </div>
             </div>
 
@@ -594,7 +580,6 @@ export default function App() {
               <h4 className="font-semibold text-stone-200 mb-3">Contact</h4>
               <ul className="space-y-2 text-sm">
                 <li><a href={`https://wa.me/${WA_MARTHA}`} target="_blank" rel="noopener noreferrer" className="hover:text-green-400 transition-colors">📲 Martha: +256 786 111030</a></li>
-                <li><a href={`https://wa.me/${WA_SHADRACH}`} target="_blank" rel="noopener noreferrer" className="hover:text-green-400 transition-colors">📲 Shadrach: +256 751 900731</a></li>
                 <li><a href="mailto:martha@marbithbakery.com" className="hover:text-amber-400 transition-colors">martha@marbithbakery.com</a></li>
                 <li><a href={WEB_APP_URL} className="hover:text-amber-400 transition-colors text-amber-600">Staff Login →</a></li>
               </ul>
