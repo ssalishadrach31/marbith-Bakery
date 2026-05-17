@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
-import { db, usersTable, loginLogsTable } from "@workspace/db";
+import { neonDb as db, usersTable, loginLogsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { LoginBody } from "@workspace/api-zod";
 

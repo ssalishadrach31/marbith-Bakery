@@ -1,56 +1,63 @@
 import { Router, type IRouter } from "express";
-import { db, ordersTable, orderItemsTable, productsTable, inventoryTable } from "@workspace/db";
+import { neonDb, cockroachDb, ordersTable, orderItemsTable, productsTable, inventoryTable } from "@workspace/db";
 import { eq, sql, inArray } from "drizzle-orm";
 import { CreateOrderBody, GetOrderParams, UpdateOrderStatusBody, UpdateOrderStatusParams, ListOrdersQueryParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
 async function getOrderWithItems(orderId: number) {
-  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId));
+  const [order] = await neonDb.select().from(ordersTable).where(eq(ordersTable.id, orderId));
   if (!order) return null;
-  const items = await db
+  const items = await neonDb
     .select({
       productId: orderItemsTable.productId,
-      productName: productsTable.name,
       quantity: orderItemsTable.quantity,
       unitPrice: orderItemsTable.unitPrice,
       subtotal: orderItemsTable.subtotal,
     })
     .from(orderItemsTable)
-    .leftJoin(productsTable, eq(orderItemsTable.productId, productsTable.id))
     .where(eq(orderItemsTable.orderId, orderId));
-  return { ...order, items: items.map((i) => ({ ...i, productName: i.productName ?? "Unknown" })) };
+  const productIds = items.map((i) => i.productId);
+  const products = productIds.length > 0
+    ? await cockroachDb.select({ id: productsTable.id, name: productsTable.name }).from(productsTable)
+        .where(inArray(productsTable.id, productIds))
+    : [];
+  const pMap = new Map(products.map((p) => [p.id, p.name]));
+  return { ...order, items: items.map((i) => ({ ...i, productName: pMap.get(i.productId) ?? "Unknown" })) };
 }
 
 router.get("/orders", async (req, res): Promise<void> => {
   const qp = ListOrdersQueryParams.safeParse(req.query);
   let orders;
   if (qp.success && qp.data.status) {
-    orders = await db.select().from(ordersTable).where(eq(ordersTable.status, qp.data.status as "pending" | "confirmed" | "out_for_delivery" | "delivered" | "cancelled")).orderBy(ordersTable.placedAt);
+    orders = await neonDb.select().from(ordersTable).where(eq(ordersTable.status, qp.data.status as "pending" | "confirmed" | "out_for_delivery" | "delivered" | "cancelled")).orderBy(ordersTable.placedAt);
   } else {
-    orders = await db.select().from(ordersTable).orderBy(ordersTable.placedAt);
+    orders = await neonDb.select().from(ordersTable).orderBy(ordersTable.placedAt);
   }
 
   const withItems = await Promise.all(orders.map(async (o) => {
-    const items = await db
+    const items = await neonDb
       .select({
         productId: orderItemsTable.productId,
-        productName: productsTable.name,
         quantity: orderItemsTable.quantity,
         unitPrice: orderItemsTable.unitPrice,
         subtotal: orderItemsTable.subtotal,
       })
       .from(orderItemsTable)
-      .leftJoin(productsTable, eq(orderItemsTable.productId, productsTable.id))
       .where(eq(orderItemsTable.orderId, o.id));
-    return { ...o, items: items.map((i) => ({ ...i, productName: i.productName ?? "Unknown" })) };
+    const pids = items.map((i) => i.productId);
+    const prods = pids.length > 0
+      ? await cockroachDb.select({ id: productsTable.id, name: productsTable.name }).from(productsTable).where(inArray(productsTable.id, pids))
+      : [];
+    const pm = new Map(prods.map((p) => [p.id, p.name]));
+    return { ...o, items: items.map((i) => ({ ...i, productName: pm.get(i.productId) ?? "Unknown" })) };
   }));
 
   res.json(withItems);
 });
 
 router.get("/orders/pending-count", async (_req, res): Promise<void> => {
-  const [row] = await db.select({ count: sql<number>`COUNT(*)::int` }).from(ordersTable).where(eq(ordersTable.status, "pending"));
+  const [row] = await neonDb.select({ count: sql<number>`COUNT(*)::int` }).from(ordersTable).where(eq(ordersTable.status, "pending"));
   res.json({ count: row?.count ?? 0 });
 });
 
@@ -73,7 +80,7 @@ router.post("/orders", async (req, res): Promise<void> => {
   const { customerName, customerPhone, deliveryLocation, paymentMethod, transactionId, items } = parsed.data;
 
   const productIds = items.map((i) => i.productId);
-  const products = await db.select().from(productsTable).where(inArray(productsTable.id, productIds));
+  const products = await cockroachDb.select().from(productsTable).where(inArray(productsTable.id, productIds));
   const productMap = new Map(products.map((p) => [p.id, p]));
 
   let totalAmount = 0;
@@ -85,7 +92,7 @@ router.post("/orders", async (req, res): Promise<void> => {
     return { productId: item.productId, quantity: item.quantity, unitPrice, subtotal };
   });
 
-  const [order] = await db.insert(ordersTable).values({
+  const [order] = await neonDb.insert(ordersTable).values({
     customerName,
     customerPhone,
     deliveryLocation,
@@ -96,11 +103,10 @@ router.post("/orders", async (req, res): Promise<void> => {
   }).returning();
 
   for (const item of orderItems) {
-    await db.insert(orderItemsTable).values({ orderId: order.id, ...item });
-    // Deduct inventory
-    const [inv] = await db.select().from(inventoryTable).where(eq(inventoryTable.productId, item.productId));
+    await neonDb.insert(orderItemsTable).values({ orderId: order.id, ...item });
+    const [inv] = await cockroachDb.select().from(inventoryTable).where(eq(inventoryTable.productId, item.productId));
     if (inv) {
-      await db.update(inventoryTable).set({ currentStock: Math.max(0, inv.currentStock - item.quantity), lastUpdated: new Date() }).where(eq(inventoryTable.productId, item.productId));
+      await cockroachDb.update(inventoryTable).set({ currentStock: Math.max(0, inv.currentStock - item.quantity), lastUpdated: new Date() }).where(eq(inventoryTable.productId, item.productId));
     }
   }
 
@@ -116,7 +122,7 @@ router.put("/orders/:id", async (req, res): Promise<void> => {
   const parsed = UpdateOrderStatusBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  await db.update(ordersTable).set({ status: parsed.data.status }).where(eq(ordersTable.id, params.data.id));
+  await neonDb.update(ordersTable).set({ status: parsed.data.status }).where(eq(ordersTable.id, params.data.id));
   const order = await getOrderWithItems(params.data.id);
   if (!order) { res.status(404).json({ error: "Order not found" }); return; }
   res.json(order);

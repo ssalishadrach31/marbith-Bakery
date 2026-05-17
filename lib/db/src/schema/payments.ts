@@ -2,7 +2,6 @@ import { pgTable, text, serial, timestamp, integer, real } from "drizzle-orm/pg-
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { ordersTable } from "./orders";
-import { salesTable } from "./sales";
 
 export const paymentsTable = pgTable("payments", {
   id: serial("id").primaryKey(),
@@ -11,7 +10,7 @@ export const paymentsTable = pgTable("payments", {
   amount: real("amount").notNull(),
   phoneNumber: text("phone_number").notNull(),
   orderId: integer("order_id").references(() => ordersTable.id),
-  saleId: integer("sale_id").references(() => salesTable.id),
+  saleId: integer("sale_id"),
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
   notes: text("notes"),
 });

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
-import { db, dailyCountsTable, productsTable } from "@workspace/db";
+import { cockroachDb as db, dailyCountsTable, productsTable } from "@workspace/db";
 import { eq, sql, and } from "drizzle-orm";
 import { notifyByRoles, notifyUsers } from "../lib/notify";
 

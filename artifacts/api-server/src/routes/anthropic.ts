@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
-import { db } from "@workspace/db";
+import { neonDb, cockroachDb } from "@workspace/db";
 import { conversations, messages } from "@workspace/db/schema";
 import { sql } from "drizzle-orm";
 import { eq, asc } from "drizzle-orm";
@@ -24,7 +24,7 @@ async function developerOnly(req: any, res: any, next: any): Promise<void> {
   const payload = getTokenPayload(req);
   if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
   if (payload.role !== "admin") { res.status(403).json({ error: "Admin only" }); return; }
-  const result = await db.execute(sql`SELECT username FROM users WHERE id = ${payload.userId} LIMIT 1`);
+  const result = await neonDb.execute(sql`SELECT username FROM users WHERE id = ${payload.userId} LIMIT 1`);
   const user = result.rows[0] as any;
   if (!user || user.username !== ALLOWED_USERNAME) {
     res.status(403).json({ error: "Access restricted to the system developer" });
@@ -33,39 +33,47 @@ async function developerOnly(req: any, res: any, next: any): Promise<void> {
   next();
 }
 
+const neonTbls = ["users", "employees", "orders", "payments"];
+const cockroachTbls = ["products", "inventory", "attendance", "production", "sales", "deliveries", "expenses", "wholesale_customers", "notifications", "pending_approvals"];
+
 async function buildSystemContext(): Promise<string> {
-  const tableNames = [
-    "users", "employees", "products", "inventory", "attendance",
-    "production", "sales", "orders", "deliveries", "expenses",
-    "payments", "wholesale_customers", "notifications", "pending_approvals",
-  ];
   const counts: Record<string, number> = {};
-  for (const t of tableNames) {
+  for (const t of neonTbls) {
     try {
-      const r = await db.execute(sql.raw(`SELECT COUNT(*)::int AS n FROM ${t}`));
+      const r = await neonDb.execute(sql.raw(`SELECT COUNT(*)::int AS n FROM ${t}`));
+      counts[t] = (r.rows[0] as any).n ?? 0;
+    } catch { counts[t] = -1; }
+  }
+  for (const t of cockroachTbls) {
+    try {
+      const r = await cockroachDb.execute(sql.raw(`SELECT COUNT(*)::int AS n FROM ${t}`));
       counts[t] = (r.rows[0] as any).n ?? 0;
     } catch { counts[t] = -1; }
   }
 
-  const recentAttendance = await db.execute(sql`
-    SELECT e.name, a.check_in, a.check_out, a.date
-    FROM attendance a JOIN employees e ON e.id = a.employee_id
-    ORDER BY a.date DESC, a.check_in DESC LIMIT 10
-  `);
+  const [attRows, empRows] = await Promise.all([
+    cockroachDb.execute(sql`SELECT employee_id, check_in, check_out, date FROM attendance ORDER BY date DESC, check_in DESC LIMIT 10`),
+    neonDb.execute(sql`SELECT id, name FROM employees`),
+  ]);
+  const empNameMap = new Map((empRows.rows as any[]).map((e: any) => [e.id, e.name]));
+  const recentAttendance = { rows: (attRows.rows as any[]).map((a: any) => ({
+    name: empNameMap.get(a.employee_id) ?? "Unknown",
+    check_in: a.check_in, check_out: a.check_out, date: a.date,
+  })) };
 
-  const recentSales = await db.execute(sql`
+  const recentSales = await cockroachDb.execute(sql`
     SELECT s.id, s.total_amount, s.payment_method, s.sold_at
     FROM sales s ORDER BY s.sold_at DESC LIMIT 5
   `);
 
-  const lowStock = await db.execute(sql`
+  const lowStock = await cockroachDb.execute(sql`
     SELECT p.name, i.current_stock, p.low_stock_threshold
     FROM inventory i JOIN products p ON p.id = i.product_id
     WHERE p.low_stock_threshold > 0 AND i.current_stock <= p.low_stock_threshold
     ORDER BY i.current_stock ASC LIMIT 10
   `);
 
-  const pendingApprovals = await db.execute(sql`
+  const pendingApprovals = await cockroachDb.execute(sql`
     SELECT action_type, target_user_name, requested_by_name, status, created_at
     FROM pending_approvals ORDER BY created_at DESC LIMIT 5
   `);
@@ -123,7 +131,7 @@ Be concise, technical, and helpful. You have full context of what was built toda
 
 // GET /api/anthropic/conversations — developer only
 router.get("/anthropic/conversations", developerOnly, async (_req, res): Promise<void> => {
-  const result = await db.select().from(conversations).orderBy(asc(conversations.createdAt));
+  const result = await cockroachDb.select().from(conversations).orderBy(asc(conversations.createdAt));
   res.json(result.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() })));
 });
 
@@ -131,16 +139,16 @@ router.get("/anthropic/conversations", developerOnly, async (_req, res): Promise
 router.post("/anthropic/conversations", developerOnly, async (req, res): Promise<void> => {
   const { title } = req.body as { title: string };
   if (!title?.trim()) { res.status(400).json({ error: "title is required" }); return; }
-  const [conv] = await db.insert(conversations).values({ title: title.trim() }).returning();
+  const [conv] = await cockroachDb.insert(conversations).values({ title: title.trim() }).returning();
   res.status(201).json({ ...conv, createdAt: conv.createdAt.toISOString() });
 });
 
 // GET /api/anthropic/conversations/:id — developer only
 router.get("/anthropic/conversations/:id", developerOnly, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
-  const [conv] = await db.select().from(conversations).where(eq(conversations.id, id));
+  const [conv] = await cockroachDb.select().from(conversations).where(eq(conversations.id, id));
   if (!conv) { res.status(404).json({ error: "Conversation not found" }); return; }
-  const msgs = await db.select().from(messages)
+  const msgs = await cockroachDb.select().from(messages)
     .where(eq(messages.conversationId, id))
     .orderBy(asc(messages.createdAt));
   res.json({
@@ -153,7 +161,7 @@ router.get("/anthropic/conversations/:id", developerOnly, async (req, res): Prom
 // DELETE /api/anthropic/conversations/:id — developer only
 router.delete("/anthropic/conversations/:id", developerOnly, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
-  const [deleted] = await db.delete(conversations).where(eq(conversations.id, id)).returning();
+  const [deleted] = await cockroachDb.delete(conversations).where(eq(conversations.id, id)).returning();
   if (!deleted) { res.status(404).json({ error: "Conversation not found" }); return; }
   res.status(204).end();
 });
@@ -161,7 +169,7 @@ router.delete("/anthropic/conversations/:id", developerOnly, async (req, res): P
 // GET /api/anthropic/conversations/:id/messages — developer only
 router.get("/anthropic/conversations/:id/messages", developerOnly, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
-  const msgs = await db.select().from(messages)
+  const msgs = await cockroachDb.select().from(messages)
     .where(eq(messages.conversationId, id))
     .orderBy(asc(messages.createdAt));
   res.json(msgs.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() })));
@@ -173,14 +181,14 @@ router.post("/anthropic/conversations/:id/messages", developerOnly, async (req, 
   const { content } = req.body as { content: string };
   if (!content?.trim()) { res.status(400).json({ error: "content is required" }); return; }
 
-  const [conv] = await db.select().from(conversations).where(eq(conversations.id, id));
+  const [conv] = await cockroachDb.select().from(conversations).where(eq(conversations.id, id));
   if (!conv) { res.status(404).json({ error: "Conversation not found" }); return; }
 
   // Save user message
-  await db.insert(messages).values({ conversationId: id, role: "user", content: content.trim() });
+  await cockroachDb.insert(messages).values({ conversationId: id, role: "user", content: content.trim() });
 
   // Fetch full history for context
-  const history = await db.select().from(messages)
+  const history = await cockroachDb.select().from(messages)
     .where(eq(messages.conversationId, id))
     .orderBy(asc(messages.createdAt));
 
@@ -216,7 +224,7 @@ router.post("/anthropic/conversations/:id/messages", developerOnly, async (req, 
     }
 
     // Save assistant message
-    await db.insert(messages).values({
+    await cockroachDb.insert(messages).values({
       conversationId: id,
       role: "assistant",
       content: fullResponse,

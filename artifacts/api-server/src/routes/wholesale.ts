@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, wholesaleCustomersTable, wholesaleSuppliesTable, wholesaleSupplyItemsTable, productsTable, inventoryTable } from "@workspace/db";
+import { cockroachDb as db, wholesaleCustomersTable, wholesaleSuppliesTable, wholesaleSupplyItemsTable, productsTable, inventoryTable } from "@workspace/db";
 import { eq, sql, inArray } from "drizzle-orm";
 import { CreateWholesaleCustomerBody, CreateWholesaleSupplyBody, UpdateSupplyPaymentStatusBody, UpdateSupplyPaymentStatusParams } from "@workspace/api-zod";
 

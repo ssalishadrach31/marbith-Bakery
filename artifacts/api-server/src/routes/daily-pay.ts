@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
-import { db, attendanceTable, employeesTable, expensesTable } from "@workspace/db";
+import { neonDb, cockroachDb, attendanceTable, employeesTable, expensesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 
@@ -21,21 +21,34 @@ router.get("/daily-pay", async (req, res): Promise<void> => {
 
   const date = (req.query.date as string) || new Date().toISOString().split("T")[0];
 
-  const attendees = await db
+  const attendanceRecords = await cockroachDb
     .select({
       attendanceId: attendanceTable.id,
-      employeeId:  attendanceTable.employeeId,
-      checkIn:     attendanceTable.checkIn,
-      checkOut:    attendanceTable.checkOut,
-      hoursWorked: attendanceTable.hoursWorked,
-      name:        employeesTable.name,
-      salary:      employeesTable.salary,
+      employeeId:   attendanceTable.employeeId,
+      checkIn:      attendanceTable.checkIn,
+      checkOut:     attendanceTable.checkOut,
+      hoursWorked:  attendanceTable.hoursWorked,
     })
     .from(attendanceTable)
-    .innerJoin(employeesTable, eq(attendanceTable.employeeId, employeesTable.id))
-    .where(and(eq(attendanceTable.date, date), eq(employeesTable.role, "cashier")));
+    .where(eq(attendanceTable.date, date));
 
-  const dailySalaryExpenses = await db
+  const employeeIds = [...new Set(attendanceRecords.map((r) => r.employeeId))];
+  const cashiers = employeeIds.length > 0
+    ? await neonDb
+        .select({ id: employeesTable.id, name: employeesTable.name, salary: employeesTable.salary, role: employeesTable.role })
+        .from(employeesTable)
+        .where(sql`${employeesTable.id} = ANY(ARRAY[${sql.join(employeeIds.map((id) => sql`${id}`), sql`, `)}]::int[])`)
+    : [];
+  const cashierMap = new Map(cashiers.filter((e) => e.role === "cashier").map((e) => [e.id, e]));
+
+  const attendees = attendanceRecords
+    .filter((r) => cashierMap.has(r.employeeId))
+    .map((r) => {
+      const emp = cashierMap.get(r.employeeId)!;
+      return { ...r, name: emp.name, salary: emp.salary };
+    });
+
+  const dailySalaryExpenses = await cockroachDb
     .select({
       id:          expensesTable.id,
       description: expensesTable.description,

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
-import { db } from "@workspace/db";
+import { neonDb, cockroachDb } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { usersTable, shopsTable, employeesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
@@ -10,9 +10,9 @@ const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
 const ALLOWED_USERNAME = "shadrachssali@gmail.com";
 const AVAILABLE_PERMISSIONS = ["manage_shops", "view_passwords"] as const;
 
-// Ensure extra_permissions column exists
-db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_permissions TEXT[] NOT NULL DEFAULT '{}'`)
-  .catch(() => { /* column already exists */ });
+// Ensure extra_permissions column exists on users (Neon)
+neonDb.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_permissions TEXT[] NOT NULL DEFAULT '{}'`)
+  .catch(() => {});
 
 function getTokenPayload(req: any): { userId: number; role: string; name: string } | null {
   const h = req.headers.authorization;
@@ -31,7 +31,7 @@ async function developerOnly(req: any, res: any, next: any) {
   const payload = getTokenPayload(req);
   if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
   if (payload.role !== "admin") { res.status(403).json({ error: "Admin only" }); return; }
-  const result = await db.execute(sql`SELECT username FROM users WHERE id = ${payload.userId} LIMIT 1`);
+  const result = await neonDb.execute(sql`SELECT username FROM users WHERE id = ${payload.userId} LIMIT 1`);
   const user = result.rows[0] as any;
   if (!user || user.username !== ALLOWED_USERNAME) {
     res.status(403).json({ error: "Access restricted to the system developer" });
@@ -45,7 +45,7 @@ function requirePermission(perm: string) {
     const payload = getTokenPayload(req);
     if (!payload) { res.status(401).json({ error: "Unauthorized" }); return; }
     if (payload.role !== "admin") { res.status(403).json({ error: "Admin only" }); return; }
-    const result = await db.execute(sql`SELECT username, extra_permissions FROM users WHERE id = ${payload.userId} LIMIT 1`);
+    const result = await neonDb.execute(sql`SELECT username, extra_permissions FROM users WHERE id = ${payload.userId} LIMIT 1`);
     const user = result.rows[0] as any;
     if (!user) { res.status(403).json({ error: "User not found" }); return; }
     if (user.username === ALLOWED_USERNAME) { next(); return; }
@@ -55,27 +55,36 @@ function requirePermission(perm: string) {
   };
 }
 
-// GET /api/dev/stats — any admin
+// Neon tables
+const neonTables = ["users", "employees", "orders", "order_items", "payments", "login_logs"];
+// CockroachDB tables
+const cockroachTables = [
+  "production", "sales", "sale_items", "shop_receipts",
+  "daily_counts", "deliveries", "expenses",
+  "wholesale_supplies", "wholesale_supply_items", "wholesale_customers",
+  "salary_payments", "attendance", "notifications", "pending_approvals",
+  "inventory", "products",
+];
+
 router.get("/dev/stats", adminOnly, async (req, res): Promise<void> => {
-  const tables = [
-    "production", "sales", "sale_items", "shop_receipts",
-    "daily_counts", "orders", "order_items", "deliveries",
-    "expenses", "payments", "wholesale_supplies", "wholesale_supply_items",
-    "salary_payments", "attendance", "notifications", "pending_approvals",
-    "inventory",
-  ];
-  const kept = ["users", "employees", "products", "wholesale_customers"];
   const counts: Record<string, number> = {};
-  for (const t of [...tables, ...kept]) {
-    const result = await db.execute(sql.raw(`SELECT COUNT(*)::int AS n FROM ${t}`));
-    counts[t] = (result.rows[0] as any).n;
+  for (const t of neonTables) {
+    try {
+      const result = await neonDb.execute(sql.raw(`SELECT COUNT(*)::int AS n FROM ${t}`));
+      counts[t] = (result.rows[0] as any).n ?? 0;
+    } catch { counts[t] = -1; }
   }
-  const stockResult = await db.execute(sql`SELECT COALESCE(SUM(current_stock),0)::int AS total FROM inventory`);
+  for (const t of cockroachTables) {
+    try {
+      const result = await cockroachDb.execute(sql.raw(`SELECT COUNT(*)::int AS n FROM ${t}`));
+      counts[t] = (result.rows[0] as any).n ?? 0;
+    } catch { counts[t] = -1; }
+  }
+  const stockResult = await cockroachDb.execute(sql`SELECT COALESCE(SUM(current_stock),0)::int AS total FROM inventory`);
   const totalStock = (stockResult.rows[0] as any).total;
-  res.json({ counts, totalStock, kept });
+  res.json({ counts, totalStock });
 });
 
-// POST /api/dev/reset — any admin
 router.post("/dev/reset", adminOnly, async (req, res): Promise<void> => {
   const { scope } = req.body as { scope: string };
   const validScopes = ["all", "production", "sales", "counts", "orders", "expenses", "attendance", "payments", "notifications", "inventory"];
@@ -85,56 +94,56 @@ router.post("/dev/reset", adminOnly, async (req, res): Promise<void> => {
   }
   const cleared: string[] = [];
   if (scope === "all" || scope === "notifications") {
-    await db.execute(sql`TRUNCATE TABLE notifications`);
-    await db.execute(sql`TRUNCATE TABLE pending_approvals`);
+    await cockroachDb.execute(sql`TRUNCATE TABLE notifications`);
+    await cockroachDb.execute(sql`TRUNCATE TABLE pending_approvals`);
     cleared.push("notifications", "pending_approvals");
   }
   if (scope === "all" || scope === "counts") {
-    await db.execute(sql`TRUNCATE TABLE daily_counts`);
-    await db.execute(sql`TRUNCATE TABLE shop_receipts`);
+    await cockroachDb.execute(sql`TRUNCATE TABLE daily_counts`);
+    await cockroachDb.execute(sql`TRUNCATE TABLE shop_receipts`);
     cleared.push("daily_counts", "shop_receipts");
   }
   if (scope === "all" || scope === "production") {
-    await db.execute(sql`TRUNCATE TABLE production`);
+    await cockroachDb.execute(sql`TRUNCATE TABLE production`);
     cleared.push("production");
   }
   if (scope === "all" || scope === "sales") {
-    await db.execute(sql`TRUNCATE TABLE sale_items, sales CASCADE`);
+    await cockroachDb.execute(sql`TRUNCATE TABLE sale_items`);
+    await cockroachDb.execute(sql`TRUNCATE TABLE sales`);
     cleared.push("sales", "sale_items");
   }
   if (scope === "all" || scope === "orders") {
-    await db.execute(sql`TRUNCATE TABLE order_items`);
-    await db.execute(sql`TRUNCATE TABLE deliveries`);
-    await db.execute(sql`TRUNCATE TABLE orders`);
+    await neonDb.execute(sql`TRUNCATE TABLE order_items`);
+    await cockroachDb.execute(sql`TRUNCATE TABLE deliveries`);
+    await neonDb.execute(sql`TRUNCATE TABLE orders`);
     cleared.push("orders", "order_items", "deliveries");
   }
   if (scope === "all" || scope === "expenses") {
-    await db.execute(sql`TRUNCATE TABLE expenses`);
+    await cockroachDb.execute(sql`TRUNCATE TABLE expenses`);
     cleared.push("expenses");
   }
   if (scope === "all" || scope === "payments") {
-    await db.execute(sql`TRUNCATE TABLE payments`);
-    await db.execute(sql`TRUNCATE TABLE salary_payments`);
-    await db.execute(sql`TRUNCATE TABLE wholesale_supply_items`);
-    await db.execute(sql`TRUNCATE TABLE wholesale_supplies`);
+    await neonDb.execute(sql`TRUNCATE TABLE payments`);
+    await cockroachDb.execute(sql`TRUNCATE TABLE salary_payments`);
+    await cockroachDb.execute(sql`TRUNCATE TABLE wholesale_supply_items`);
+    await cockroachDb.execute(sql`TRUNCATE TABLE wholesale_supplies`);
     cleared.push("payments", "salary_payments", "wholesale_supplies", "wholesale_supply_items");
   }
   if (scope === "all" || scope === "attendance") {
-    await db.execute(sql`TRUNCATE TABLE attendance`);
+    await cockroachDb.execute(sql`TRUNCATE TABLE attendance`);
     cleared.push("attendance");
   }
   if (scope === "all" || scope === "inventory") {
-    await db.execute(sql`UPDATE inventory SET current_stock = 0`);
+    await cockroachDb.execute(sql`UPDATE inventory SET current_stock = 0`);
     cleared.push("inventory (reset to 0)");
   }
   req.log.info({ scope, cleared }, "Dev reset executed");
   res.json({ ok: true, scope, cleared });
 });
 
-// GET /api/dev/my-permissions — any admin: returns their permissions + isDeveloper flag
 router.get("/dev/my-permissions", adminOnly, async (req, res): Promise<void> => {
   const payload = getTokenPayload(req);
-  const result = await db.execute(sql`SELECT username, extra_permissions FROM users WHERE id = ${payload!.userId} LIMIT 1`);
+  const result = await neonDb.execute(sql`SELECT username, extra_permissions FROM users WHERE id = ${payload!.userId} LIMIT 1`);
   const user = result.rows[0] as any;
   const isDeveloper = user?.username === ALLOWED_USERNAME;
   res.json({
@@ -143,9 +152,8 @@ router.get("/dev/my-permissions", adminOnly, async (req, res): Promise<void> => 
   });
 });
 
-// GET /api/dev/users-passwords — Shadrach only
 router.get("/dev/users-passwords", developerOnly, async (_req, res): Promise<void> => {
-  const users = await db.select({
+  const users = await neonDb.select({
     id: usersTable.id,
     username: usersTable.username,
     name: usersTable.name,
@@ -157,9 +165,8 @@ router.get("/dev/users-passwords", developerOnly, async (_req, res): Promise<voi
   res.json(users);
 });
 
-// GET /api/dev/admin-users — Shadrach only: list other admins with their permissions
 router.get("/dev/admin-users", developerOnly, async (_req, res): Promise<void> => {
-  const result = await db.execute(sql`
+  const result = await neonDb.execute(sql`
     SELECT id, name, username, extra_permissions
     FROM users
     WHERE role = 'admin' AND username != ${ALLOWED_USERNAME}
@@ -168,7 +175,6 @@ router.get("/dev/admin-users", developerOnly, async (_req, res): Promise<void> =
   res.json(result.rows);
 });
 
-// PATCH /api/dev/admin-users/:id/permissions — Shadrach only: grant or revoke a permission
 router.patch("/dev/admin-users/:id/permissions", developerOnly, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const { permission, grant } = req.body as { permission: string; grant: boolean };
@@ -177,25 +183,24 @@ router.patch("/dev/admin-users/:id/permissions", developerOnly, async (req, res)
     return;
   }
   if (grant) {
-    await db.execute(sql`
+    await neonDb.execute(sql`
       UPDATE users
       SET extra_permissions = array_append(extra_permissions, ${permission})
       WHERE id = ${id} AND NOT (extra_permissions @> ARRAY[${permission}]::text[])
     `);
   } else {
-    await db.execute(sql`
+    await neonDb.execute(sql`
       UPDATE users SET extra_permissions = array_remove(extra_permissions, ${permission}) WHERE id = ${id}
     `);
   }
-  const result = await db.execute(sql`SELECT id, name, username, extra_permissions FROM users WHERE id = ${id}`);
+  const result = await neonDb.execute(sql`SELECT id, name, username, extra_permissions FROM users WHERE id = ${id}`);
   if (!result.rows[0]) { res.status(404).json({ error: "User not found" }); return; }
   res.json(result.rows[0]);
 });
 
-// GET /api/dev/shops — Shadrach or manage_shops permission
 router.get("/dev/shops", requirePermission("manage_shops"), async (_req, res): Promise<void> => {
-  const shops = await db.select().from(shopsTable).orderBy(shopsTable.createdAt);
-  const employees = await db
+  const shops = await neonDb.select().from(shopsTable).orderBy(shopsTable.createdAt);
+  const employees = await neonDb
     .select({ id: employeesTable.id, name: employeesTable.name, role: employeesTable.role, shopId: employeesTable.shopId })
     .from(employeesTable);
   const result = shops.map((s) => ({
@@ -206,7 +211,6 @@ router.get("/dev/shops", requirePermission("manage_shops"), async (_req, res): P
   res.json(result);
 });
 
-// POST /api/dev/shops — create a new shop
 router.post("/dev/shops", requirePermission("manage_shops"), async (req, res): Promise<void> => {
   const { name, location, address, phone } = req.body as {
     name: string; location: string; address?: string; phone?: string;
@@ -215,7 +219,7 @@ router.post("/dev/shops", requirePermission("manage_shops"), async (req, res): P
     res.status(400).json({ error: "name and location are required" });
     return;
   }
-  const [shop] = await db.insert(shopsTable).values({
+  const [shop] = await neonDb.insert(shopsTable).values({
     name: name.trim(),
     location: location.trim(),
     address: address?.trim() || null,
@@ -225,23 +229,21 @@ router.post("/dev/shops", requirePermission("manage_shops"), async (req, res): P
   res.json({ ...shop, createdAt: shop.createdAt.toISOString(), employees: [] });
 });
 
-// PATCH /api/dev/shops/:id/toggle — activate / deactivate
 router.patch("/dev/shops/:id/toggle", requirePermission("manage_shops"), async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
-  const [existing] = await db.select().from(shopsTable).where(eq(shopsTable.id, id));
+  const [existing] = await neonDb.select().from(shopsTable).where(eq(shopsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Shop not found" }); return; }
-  const [updated] = await db.update(shopsTable)
+  const [updated] = await neonDb.update(shopsTable)
     .set({ isActive: !existing.isActive })
     .where(eq(shopsTable.id, id))
     .returning();
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
 
-// PATCH /api/dev/employees/:id/shop — assign employee to a shop
 router.patch("/dev/employees/:id/shop", requirePermission("manage_shops"), async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const { shopId } = req.body as { shopId: number | null };
-  const [updated] = await db.update(employeesTable)
+  const [updated] = await neonDb.update(employeesTable)
     .set({ shopId: shopId ?? null })
     .where(eq(employeesTable.id, id))
     .returning();

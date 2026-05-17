@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
-import { db, pendingApprovalsTable, usersTable } from "@workspace/db";
+import { neonDb, cockroachDb, pendingApprovalsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -28,13 +28,13 @@ router.get("/approvals", async (req, res): Promise<void> => {
   const admin = requireAdmin(req, res);
   if (!admin) return;
   if (!isDeveloper(admin.userId)) {
-    const mine = await db.select().from(pendingApprovalsTable)
+    const mine = await cockroachDb.select().from(pendingApprovalsTable)
       .where(eq(pendingApprovalsTable.requestedById, admin.userId))
       .orderBy(pendingApprovalsTable.createdAt);
     res.json(mine);
     return;
   }
-  const all = await db.select().from(pendingApprovalsTable).orderBy(pendingApprovalsTable.createdAt);
+  const all = await cockroachDb.select().from(pendingApprovalsTable).orderBy(pendingApprovalsTable.createdAt);
   res.json(all);
 });
 
@@ -57,7 +57,7 @@ router.post("/approvals", async (req, res): Promise<void> => {
     return;
   }
 
-  const [target] = await db.select({ id: usersTable.id, name: usersTable.name, username: usersTable.username })
+  const [target] = await neonDb.select({ id: usersTable.id, name: usersTable.name, username: usersTable.username })
     .from(usersTable).where(eq(usersTable.id, targetUserId));
   if (!target) { res.status(404).json({ error: "Target user not found" }); return; }
 
@@ -66,7 +66,7 @@ router.post("/approvals", async (req, res): Promise<void> => {
     return;
   }
 
-  const existing = await db.select({ id: pendingApprovalsTable.id })
+  const existing = await cockroachDb.select({ id: pendingApprovalsTable.id })
     .from(pendingApprovalsTable)
     .where(and(
       eq(pendingApprovalsTable.targetUserId, targetUserId),
@@ -78,7 +78,7 @@ router.post("/approvals", async (req, res): Promise<void> => {
     return;
   }
 
-  const [approval] = await db.insert(pendingApprovalsTable).values({
+  const [approval] = await cockroachDb.insert(pendingApprovalsTable).values({
     actionType,
     targetUserId: target.id,
     targetUserName: target.name,
@@ -108,19 +108,19 @@ router.patch("/approvals/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [approval] = await db.select().from(pendingApprovalsTable).where(eq(pendingApprovalsTable.id, id));
+  const [approval] = await cockroachDb.select().from(pendingApprovalsTable).where(eq(pendingApprovalsTable.id, id));
   if (!approval) { res.status(404).json({ error: "Approval not found" }); return; }
   if (approval.status !== "pending") { res.status(400).json({ error: "Already reviewed" }); return; }
 
   if (status === "approved") {
     if (approval.actionType === "delete_user") {
-      await db.delete(usersTable).where(eq(usersTable.id, approval.targetUserId));
+      await neonDb.delete(usersTable).where(eq(usersTable.id, approval.targetUserId));
     } else if (approval.actionType === "reset_password" && approval.newPassword) {
-      await db.update(usersTable).set({ password: approval.newPassword }).where(eq(usersTable.id, approval.targetUserId));
+      await neonDb.update(usersTable).set({ password: approval.newPassword }).where(eq(usersTable.id, approval.targetUserId));
     }
   }
 
-  const [updated] = await db.update(pendingApprovalsTable)
+  const [updated] = await cockroachDb.update(pendingApprovalsTable)
     .set({ status, reviewerNotes: reviewerNotes ?? null, reviewedAt: new Date() })
     .where(eq(pendingApprovalsTable.id, id))
     .returning();
@@ -133,14 +133,14 @@ router.delete("/approvals/:id", async (req, res): Promise<void> => {
   if (!admin) return;
 
   const id = parseInt(req.params.id, 10);
-  const [approval] = await db.select().from(pendingApprovalsTable).where(eq(pendingApprovalsTable.id, id));
+  const [approval] = await cockroachDb.select().from(pendingApprovalsTable).where(eq(pendingApprovalsTable.id, id));
   if (!approval) { res.status(404).json({ error: "Not found" }); return; }
 
   const canCancel = isDeveloper(admin.userId) || approval.requestedById === admin.userId;
   if (!canCancel) { res.status(403).json({ error: "Not allowed" }); return; }
   if (approval.status !== "pending") { res.status(400).json({ error: "Cannot cancel a reviewed request" }); return; }
 
-  await db.delete(pendingApprovalsTable).where(eq(pendingApprovalsTable.id, id));
+  await cockroachDb.delete(pendingApprovalsTable).where(eq(pendingApprovalsTable.id, id));
   res.sendStatus(204);
 });
 

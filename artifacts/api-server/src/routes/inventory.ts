@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
-import { db, inventoryTable, productsTable, inventoryAdjustmentsTable } from "@workspace/db";
+import { cockroachDb as db, inventoryTable, productsTable, inventoryAdjustmentsTable } from "@workspace/db";
 import { eq, lte, sql, desc } from "drizzle-orm";
 import { AdjustInventoryBody, AdjustInventoryParams } from "@workspace/api-zod";
 

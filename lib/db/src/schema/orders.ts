@@ -17,7 +17,7 @@ export const ordersTable = pgTable("orders", {
 
 export const orderItemsTable = pgTable("order_items", {
   id: serial("id").primaryKey(),
-  orderId: integer("order_id").notNull().references(() => ordersTable.id),
+  orderId: integer("order_id").notNull(),
   productId: integer("product_id").notNull().references(() => productsTable.id),
   quantity: integer("quantity").notNull(),
   unitPrice: real("unit_price").notNull(),

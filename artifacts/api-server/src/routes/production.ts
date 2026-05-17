@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
-import { db, productionTable, productsTable, inventoryTable, salesTable, saleItemsTable } from "@workspace/db";
+import { cockroachDb as db, productionTable, productsTable, inventoryTable, salesTable, saleItemsTable } from "@workspace/db";
 import { eq, sql, and } from "drizzle-orm";
 import { CreateProductionBody, ListProductionQueryParams, GetProductionDailyReportQueryParams } from "@workspace/api-zod";
 import { notifyByRoles } from "../lib/notify";

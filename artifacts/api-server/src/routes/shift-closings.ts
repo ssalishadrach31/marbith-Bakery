@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
-import { db } from "@workspace/db";
+import { neonDb, cockroachDb } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
@@ -9,8 +9,8 @@ import { notifyByRoles, notifyAllActiveUsers, notifyUsers } from "../lib/notify"
 const router: IRouter = Router();
 const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
 
-// Create table with status + approval columns on first load
-db.execute(sql`
+// Create table and add any missing columns on first load
+cockroachDb.execute(sql`
   CREATE TABLE IF NOT EXISTS shift_closings (
     id SERIAL PRIMARY KEY,
     closed_by TEXT NOT NULL,
@@ -21,23 +21,14 @@ db.execute(sql`
     approved_by TEXT,
     approved_at TIMESTAMPTZ
   )
-`).then(() => {
-  // Migrate existing tables that may be missing the new columns
-  return db.execute(sql`
-    DO $$
-    BEGIN
-      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shift_closings' AND column_name='status') THEN
-        ALTER TABLE shift_closings ADD COLUMN status TEXT NOT NULL DEFAULT 'approved';
-      END IF;
-      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shift_closings' AND column_name='approved_by') THEN
-        ALTER TABLE shift_closings ADD COLUMN approved_by TEXT;
-      END IF;
-      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='shift_closings' AND column_name='approved_at') THEN
-        ALTER TABLE shift_closings ADD COLUMN approved_at TIMESTAMPTZ;
-      END IF;
-    END
-    $$
-  `);
+`).then(async () => {
+  for (const col of [
+    "ALTER TABLE shift_closings ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'approved'",
+    "ALTER TABLE shift_closings ADD COLUMN IF NOT EXISTS approved_by TEXT",
+    "ALTER TABLE shift_closings ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ",
+  ]) {
+    await cockroachDb.execute(sql.raw(col)).catch(() => {});
+  }
 }).catch(() => {});
 
 function getUser(req: any): { userId: number; role: string; name: string } | null {
@@ -64,7 +55,7 @@ router.get("/shift-closings", async (req, res): Promise<void> => {
   const user = getUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const result = await db.execute(sql`
+  const result = await cockroachDb.execute(sql`
     SELECT id, closed_by, shift_date::text AS shift_date, closed_at, notes, status, approved_by, approved_at
     FROM shift_closings
     ORDER BY shift_date DESC
@@ -83,7 +74,7 @@ router.post("/shift-closings", async (req, res): Promise<void> => {
   const date = shiftDate || new Date().toISOString().split("T")[0];
 
   // Block re-closing an already approved day
-  const existing = await db.execute(sql`
+  const existing = await cockroachDb.execute(sql`
     SELECT id, status FROM shift_closings WHERE shift_date = ${date}::date
   `);
   if (existing.rows.length > 0 && (existing.rows[0] as any).status === "approved") {
@@ -95,7 +86,7 @@ router.post("/shift-closings", async (req, res): Promise<void> => {
   const status = isAdmin ? "approved" : "pending";
   const approvedBy = isAdmin ? user.name : null;
 
-  const result = await db.execute(sql`
+  const result = await cockroachDb.execute(sql`
     INSERT INTO shift_closings (closed_by, shift_date, notes, status, approved_by, approved_at)
     VALUES (
       ${user.name || "Staff"}, ${date}::date, ${notes || null},
@@ -138,7 +129,7 @@ router.patch("/shift-closings/:id/approve", async (req, res): Promise<void> => {
   const { action } = req.body as { action: "approve" | "reject" };
 
   if (action === "approve") {
-    const result = await db.execute(sql`
+    const result = await cockroachDb.execute(sql`
       UPDATE shift_closings
       SET status = 'approved', approved_by = ${user.name}, approved_at = NOW()
       WHERE id = ${id}
@@ -148,7 +139,7 @@ router.patch("/shift-closings/:id/approve", async (req, res): Promise<void> => {
     const approved = result.rows[0] as any;
     const shiftDate = approved.shift_date;
     // Notify the staff member who requested the close
-    const staffRows = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.name, approved.closed_by)).catch(() => []);
+    const staffRows = await neonDb.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.name, approved.closed_by)).catch(() => []);
     if (staffRows.length > 0) {
       await notifyUsers([staffRows[0].id], {
         type: "system",
@@ -165,7 +156,7 @@ router.patch("/shift-closings/:id/approve", async (req, res): Promise<void> => {
     res.json(row(approved));
   } else {
     // Reject → delete the pending record so staff can re-submit
-    await db.execute(sql`DELETE FROM shift_closings WHERE id = ${id} AND status = 'pending'`);
+    await cockroachDb.execute(sql`DELETE FROM shift_closings WHERE id = ${id} AND status = 'pending'`);
     res.json({ deleted: true });
   }
 });

@@ -1,11 +1,9 @@
 import { pgTable, text, serial, timestamp, integer, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { employeesTable } from "./employees";
-
 export const salaryPaymentsTable = pgTable("salary_payments", {
   id: serial("id").primaryKey(),
-  employeeId: integer("employee_id").notNull().references(() => employeesTable.id),
+  employeeId: integer("employee_id").notNull(),
   employeeName: text("employee_name").notNull(),
   amount: real("amount").notNull(),
   month: text("month").notNull(),

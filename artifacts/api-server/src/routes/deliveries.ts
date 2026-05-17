@@ -1,15 +1,15 @@
 import { Router, type IRouter } from "express";
-import { db, deliveriesTable, ordersTable, employeesTable } from "@workspace/db";
+import { neonDb, cockroachDb, deliveriesTable, ordersTable, employeesTable } from "@workspace/db";
 import { eq, sql, and } from "drizzle-orm";
 import { AssignDeliveryBody, AssignDeliveryParams, UpdateDeliveryStatusBody, UpdateDeliveryStatusParams, ListDeliveriesQueryParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
 async function formatDelivery(d: typeof deliveriesTable.$inferSelect) {
-  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, d.orderId));
+  const [order] = await neonDb.select().from(ordersTable).where(eq(ordersTable.id, d.orderId));
   let riderName: string | null = null;
   if (d.riderId) {
-    const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, d.riderId));
+    const [emp] = await neonDb.select().from(employeesTable).where(eq(employeesTable.id, d.riderId));
     riderName = emp?.name ?? null;
   }
   return {
@@ -23,7 +23,7 @@ async function formatDelivery(d: typeof deliveriesTable.$inferSelect) {
 }
 
 router.get("/riders", async (_req, res): Promise<void> => {
-  const riders = await db.select().from(employeesTable).where(eq(employeesTable.role, "rider"));
+  const riders = await neonDb.select().from(employeesTable).where(eq(employeesTable.role, "rider"));
   res.json(riders);
 });
 
@@ -31,11 +31,11 @@ router.get("/deliveries", async (req, res): Promise<void> => {
   const qp = ListDeliveriesQueryParams.safeParse(req.query);
   let deliveries;
   if (qp.success && qp.data.riderId) {
-    deliveries = await db.select().from(deliveriesTable).where(eq(deliveriesTable.riderId, qp.data.riderId));
+    deliveries = await cockroachDb.select().from(deliveriesTable).where(eq(deliveriesTable.riderId, qp.data.riderId));
   } else if (qp.success && qp.data.status) {
-    deliveries = await db.select().from(deliveriesTable).where(eq(deliveriesTable.status, qp.data.status as "assigned" | "picked_up" | "delivered" | "failed"));
+    deliveries = await cockroachDb.select().from(deliveriesTable).where(eq(deliveriesTable.status, qp.data.status as "assigned" | "picked_up" | "delivered" | "failed"));
   } else {
-    deliveries = await db.select().from(deliveriesTable);
+    deliveries = await cockroachDb.select().from(deliveriesTable);
   }
   const formatted = await Promise.all(deliveries.map(formatDelivery));
   res.json(formatted);
@@ -50,9 +50,9 @@ router.post("/deliveries/:id/assign", async (req, res): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   // Check if delivery exists for this order, create if not
-  let [delivery] = await db.select().from(deliveriesTable).where(eq(deliveriesTable.orderId, params.data.id));
+  let [delivery] = await cockroachDb.select().from(deliveriesTable).where(eq(deliveriesTable.orderId, params.data.id));
   if (!delivery) {
-    const [inserted] = await db.insert(deliveriesTable).values({
+    const [inserted] = await cockroachDb.insert(deliveriesTable).values({
       orderId: params.data.id,
       riderId: parsed.data.riderId,
       deliveryFee: parsed.data.deliveryFee,
@@ -62,7 +62,7 @@ router.post("/deliveries/:id/assign", async (req, res): Promise<void> => {
     }).returning();
     delivery = inserted;
   } else {
-    const [updated] = await db.update(deliveriesTable)
+    const [updated] = await cockroachDb.update(deliveriesTable)
       .set({ riderId: parsed.data.riderId, deliveryFee: parsed.data.deliveryFee, assignedAt: new Date(), status: "assigned" })
       .where(eq(deliveriesTable.id, delivery.id))
       .returning();
@@ -89,7 +89,7 @@ router.put("/deliveries/:id/status", async (req, res): Promise<void> => {
     updates.deliveredAt = new Date();
   }
 
-  const [delivery] = await db.update(deliveriesTable).set(updates).where(eq(deliveriesTable.id, params.data.id)).returning();
+  const [delivery] = await cockroachDb.update(deliveriesTable).set(updates).where(eq(deliveriesTable.id, params.data.id)).returning();
   if (!delivery) { res.status(404).json({ error: "Delivery not found" }); return; }
 
   const formatted = await formatDelivery(delivery);
