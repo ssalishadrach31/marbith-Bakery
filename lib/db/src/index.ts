@@ -2,7 +2,12 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "./schema";
 
-const { Pool } = pg;
+const { Pool, types } = pg;
+
+// Parse INT8 (OID 20) as JS number instead of string.
+// CockroachDB returns SERIAL primary keys as 64-bit integers; without this
+// every id comparison in Maps, inArray, etc. breaks silently.
+types.setTypeParser(20, (val: string) => parseInt(val, 10));
 
 const neonUrl = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
 if (!neonUrl) {
