@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "node -e \"const fs=require('fs');const t=JSON.parse(fs.readFileSync('tsconfig.json','utf8'));delete t.extends;delete t.references;fs.writeFileSync('tsconfig.json',JSON.stringify(t,null,2));\" && npm run build",
   "outputDirectory": "dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
