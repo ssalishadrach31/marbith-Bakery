@@ -1,24 +1,50 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 
-// Product images from Unsplash — curated for each product
 const PRODUCT_IMAGES: Record<string, string> = {
   "Pizza": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&fit=crop&q=80",
-  "Rock Bun": "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=500&fit=crop&q=80",
-  "Cakes (6pcs)": "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&fit=crop&q=80",
-  "Madeira Cake": "https://images.unsplash.com/photo-1486427944299-d1955d23e34d?w=500&fit=crop&q=80",
+  "Rock Bun": "https://images.unsplash.com/photo-1568254183919-78a4f43a2877?w=500&fit=crop&q=80",
+  "Cakes (6pcs)": "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=500&fit=crop&q=80",
+  "Madeira Cake": "https://images.unsplash.com/photo-1464349153735-7db50ed83c84?w=500&fit=crop&q=80",
   "Vanilla Muffins": "https://images.unsplash.com/photo-1607958996333-41aef7caefaa?w=500&fit=crop&q=80",
-  "Egg Rolls": "https://images.unsplash.com/photo-1563245372-f21724e3856d?w=500&fit=crop&q=80",
+  "Egg Rolls": "https://images.unsplash.com/photo-1562802378-063ec186a863?w=500&fit=crop&q=80",
   "Sumbusa": "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=500&fit=crop&q=80",
-  "Chapattis": "https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?w=500&fit=crop&q=80",
+  "Chapattis": "https://images.unsplash.com/photo-1574894709920-11b28be1af98?w=500&fit=crop&q=80",
   "Mandazi (6pcs)": "https://images.unsplash.com/photo-1551024601-bec78aea704b?w=500&fit=crop&q=80",
   "Plain Donuts": "https://images.unsplash.com/photo-1527904324834-3bda86da6771?w=500&fit=crop&q=80",
   "Cookies": "https://images.unsplash.com/photo-1499636136210-6f4ee915583e?w=500&fit=crop&q=80",
   "Cinnamon Roll": "https://images.unsplash.com/photo-1509365465985-25d11c17e812?w=500&fit=crop&q=80",
   "Teabites": "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&fit=crop&q=80",
   "American Donuts": "https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e?w=500&fit=crop&q=80",
+  "Juice": "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=500&fit=crop&q=80",
+  "Fresh Juice": "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=500&fit=crop&q=80",
+  "Tea": "https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=500&fit=crop&q=80",
+  "Coffee": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=500&fit=crop&q=80",
+  "Bread": "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=500&fit=crop&q=80",
+  "Cake": "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&fit=crop&q=80",
+  "Doughnut": "https://images.unsplash.com/photo-1527904324834-3bda86da6771?w=500&fit=crop&q=80",
+  "Donut": "https://images.unsplash.com/photo-1527904324834-3bda86da6771?w=500&fit=crop&q=80",
 };
 
 const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=500&fit=crop&q=80";
+
+function getProductImage(name: string): string {
+  if (PRODUCT_IMAGES[name]) return PRODUCT_IMAGES[name];
+  const lower = name.toLowerCase();
+  if (lower.includes("juice")) return PRODUCT_IMAGES["Juice"]!;
+  if (lower.includes("tea")) return PRODUCT_IMAGES["Tea"]!;
+  if (lower.includes("coffee")) return PRODUCT_IMAGES["Coffee"]!;
+  if (lower.includes("pizza")) return PRODUCT_IMAGES["Pizza"]!;
+  if (lower.includes("donut") || lower.includes("doughnut")) return PRODUCT_IMAGES["Plain Donuts"]!;
+  if (lower.includes("muffin")) return PRODUCT_IMAGES["Vanilla Muffins"]!;
+  if (lower.includes("cake")) return PRODUCT_IMAGES["Cake"]!;
+  if (lower.includes("cookie") || lower.includes("biscuit")) return PRODUCT_IMAGES["Cookies"]!;
+  if (lower.includes("roll")) return PRODUCT_IMAGES["Cinnamon Roll"]!;
+  if (lower.includes("bread") || lower.includes("bun")) return PRODUCT_IMAGES["Bread"]!;
+  if (lower.includes("chapati") || lower.includes("chapatti")) return PRODUCT_IMAGES["Chapattis"]!;
+  if (lower.includes("sumbusa") || lower.includes("samosa")) return PRODUCT_IMAGES["Sumbusa"]!;
+  if (lower.includes("mandazi")) return PRODUCT_IMAGES["Mandazi (6pcs)"]!;
+  return FALLBACK_IMAGE;
+}
 
 interface Product {
   id: number;
@@ -43,12 +69,11 @@ function useScrollY() {
   return y;
 }
 
-// Determine the API base URL (same domain, relative path)
 const API_BASE = "/api";
-
-// Order form URL — web app's public order form
 const ORDER_URL = "/order";
 const WEB_APP_URL = "/";
+const WA_MARTHA = "256786111030";
+const WA_SHADRACH = "256751900731";
 
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -173,7 +198,6 @@ export default function App() {
         id="home"
         className="relative min-h-screen flex items-center justify-center overflow-hidden"
       >
-        {/* Background image */}
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
@@ -181,13 +205,11 @@ export default function App() {
               "url('https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1600&fit=crop&q=85')",
           }}
         />
-        {/* Overlay */}
         <div className="absolute inset-0 hero-overlay" />
 
-        {/* Content */}
         <div className="relative z-10 text-center text-white px-4 max-w-4xl mx-auto">
           <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 text-amber-300 text-xs font-semibold tracking-[0.2em] uppercase px-5 py-2 rounded-full mb-8">
-            🍞 Freshly Baked Daily — Namasuba, Kampala
+            🍞 Freshly Baked Daily — Namasuba Parish, Kampala
           </div>
           <h1 className="font-serif text-5xl md:text-7xl font-bold mb-6 leading-tight">
             Marbith Bakery
@@ -216,8 +238,8 @@ export default function App() {
           {/* Stats */}
           <div className="mt-20 grid grid-cols-3 gap-6 max-w-lg mx-auto">
             {[
-              ["14+", "Products"],
-              ["2015", "Since"],
+              ["20+", "Products"],
+              ["2024", "Est."],
               ["100+", "Daily Orders"],
             ].map(([val, label]) => (
               <div key={label} className="text-center">
@@ -247,7 +269,7 @@ export default function App() {
               Our Menu &amp; Prices
             </h2>
             <p className="text-stone-500 text-lg max-w-xl mx-auto">
-              All prices in Ugandan Shillings. Every item baked fresh daily from the finest ingredients.
+              All prices in Ugandan Shillings. Every item freshly prepared daily from the finest ingredients.
             </p>
           </div>
 
@@ -272,7 +294,7 @@ export default function App() {
                 >
                   <div className="relative overflow-hidden h-48">
                     <img
-                      src={PRODUCT_IMAGES[p.name] || FALLBACK_IMAGE}
+                      src={getProductImage(p.name)}
                       alt={p.name}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                       loading="lazy"
@@ -297,7 +319,7 @@ export default function App() {
                         {formatUGX(p.price)}
                       </span>
                       <span className="text-xs text-stone-400 bg-stone-100 px-2 py-0.5 rounded-full capitalize">
-                        {p.unit ?? "piece"}
+                        {(p as unknown as Record<string, string>).unit ?? "piece"}
                       </span>
                     </div>
                   </div>
@@ -328,7 +350,6 @@ export default function App() {
           background: "linear-gradient(135deg, #1c0a00 0%, #3d1a00 50%, #5c2c0a 100%)",
         }}
       >
-        {/* Decorative circles */}
         <div className="absolute -top-32 -right-32 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl" />
         <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl" />
 
@@ -375,7 +396,7 @@ export default function App() {
               {
                 icon: "❤️",
                 title: "Baked with Love",
-                desc: "Since 2015, every loaf, every pastry, every cake has been made with the same care and passion our founders instilled in us from day one.",
+                desc: "Since 2024, every loaf, every pastry, every cake has been made with the same care and passion our founders bring to the table every single day.",
               },
             ].map((item) => (
               <div
@@ -429,7 +450,7 @@ export default function App() {
                   Enquire Now
                 </a>
                 <a
-                  href="https://wa.me/256700000000?text=Hi%20Marbith%20Bakery%2C%20I'm%20interested%20in%20wholesale%20supplies."
+                  href={`https://wa.me/${WA_MARTHA}?text=Hi%20Marbith%20Bakery%2C%20I'm%20interested%20in%20wholesale%20supplies.`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="bg-green-500 hover:bg-green-600 text-white font-bold px-8 py-3 rounded-full transition-colors"
@@ -462,10 +483,9 @@ export default function App() {
                   className="rounded-2xl object-cover h-52 w-full"
                 />
               </div>
-              {/* Floating badge */}
               <div className="absolute -bottom-4 -left-4 bg-amber-600 text-white rounded-2xl px-6 py-4 shadow-xl">
-                <div className="font-serif text-2xl font-bold">10+</div>
-                <div className="text-xs text-amber-200">Years of Excellence</div>
+                <div className="font-serif text-2xl font-bold">Est.</div>
+                <div className="text-xs text-amber-200">2024</div>
               </div>
             </div>
           </div>
@@ -500,7 +520,7 @@ export default function App() {
                 Delivery Right<br />to Your Door
               </h2>
               <p className="text-stone-600 text-lg mb-6 leading-relaxed">
-                Don't have time to pick up? No problem. Our delivery riders cover Namasuba and
+                Don't have time to pick up? No problem. Our delivery riders cover Namasuba Parish and
                 the greater Kampala area. Place your order online, sit back, and enjoy.
               </p>
 
@@ -540,15 +560,15 @@ export default function App() {
               Find Us
             </span>
             <h2 className="font-serif text-4xl md:text-5xl font-bold text-stone-800 mb-4">
-              Our Location
+              Our Locations
             </h2>
             <p className="text-stone-500 text-lg">
-              Visit us in Namasuba, Kampala — we're always open and ready to serve you.
+              Two convenient locations in Kampala — visit us or order online.
             </p>
           </div>
 
           <div className="grid lg:grid-cols-5 gap-8 items-stretch">
-            {/* Map embed */}
+            {/* Map embed — Nakivubo / Nabugabo Street area */}
             <div className="lg:col-span-3 rounded-3xl overflow-hidden shadow-xl h-80 lg:h-auto bg-stone-200">
               <iframe
                 title="Marbith Bakery Location"
@@ -558,19 +578,37 @@ export default function App() {
                 loading="lazy"
                 allowFullScreen
                 referrerPolicy="no-referrer-when-downgrade"
-                src="https://www.openstreetmap.org/export/embed.html?bbox=32.5200%2C0.2500%2C32.5600%2C0.2900&layer=mapnik&marker=0.2700%2C32.5400"
+                src="https://www.openstreetmap.org/export/embed.html?bbox=32.5700%2C0.2950%2C32.6100%2C0.3350&layer=mapnik&marker=0.3136%2C32.5811"
               />
             </div>
 
-            {/* Info */}
+            {/* Info cards */}
             <div className="lg:col-span-2 space-y-5">
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-100">
-                <div className="text-2xl mb-2">📍</div>
-                <h3 className="font-serif font-bold text-stone-800 text-xl mb-1">Main Bakery</h3>
-                <p className="text-stone-600">Namasuba, Kampala</p>
-                <p className="text-stone-400 text-sm">Uganda</p>
+              {/* Sale Shop */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-amber-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="text-2xl">🏪</div>
+                  <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">Sale Shop</span>
+                </div>
+                <h3 className="font-serif font-bold text-stone-800 text-lg mb-1">Totala Business Centre</h3>
+                <p className="text-stone-700 font-medium text-sm">Shop TBC 3-55</p>
+                <p className="text-stone-600 text-sm">Nakivubo Shironko Shawuliako</p>
+                <p className="text-stone-600 text-sm">Nabugabo Street, Kampala</p>
+                <p className="text-stone-400 text-xs mt-1">Uganda</p>
               </div>
 
+              {/* Bakery */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-100">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="text-2xl">🏭</div>
+                  <span className="bg-stone-100 text-stone-600 text-xs font-bold px-2 py-0.5 rounded-full">Production Bakery</span>
+                </div>
+                <h3 className="font-serif font-bold text-stone-800 text-lg mb-1">Namasuba Parish</h3>
+                <p className="text-stone-600 text-sm">Kampala, Uganda</p>
+                <p className="text-stone-400 text-xs mt-1">Just off the Entebbe Highway</p>
+              </div>
+
+              {/* Hours */}
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-100">
                 <div className="text-2xl mb-2">🕐</div>
                 <h3 className="font-serif font-bold text-stone-800 text-xl mb-2">Opening Hours</h3>
@@ -586,15 +624,6 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-              </div>
-
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
-                <div className="text-2xl mb-2">🚗</div>
-                <h3 className="font-serif font-bold text-stone-800 text-xl mb-1">How to Find Us</h3>
-                <p className="text-stone-600 text-sm leading-relaxed">
-                  Located in Namasuba, just off the Entebbe Highway. Look for the big 
-                  bakery sign — our aroma will guide you!
-                </p>
               </div>
             </div>
           </div>
@@ -623,57 +652,63 @@ export default function App() {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-            {[
-              {
-                icon: "👤",
-                role: "General Manager",
-                name: "Martha Namulindwa",
-                email: "martha@marbithbakery.com",
-                note: "Orders, wholesale, partnerships",
-              },
-              {
-                icon: "💻",
-                role: "Operations & Tech",
-                name: "Shadrach Ssali",
-                email: "shadrachssali@gmail.com",
-                note: "System, online orders, support",
-              },
-              {
-                icon: "📱",
-                role: "WhatsApp Orders",
-                name: "Marbith Bakery",
-                email: "wa.me/256700000000",
-                note: "Fastest way to order",
-                isWhatsApp: true,
-              },
-            ].map((c) => (
-              <div
-                key={c.name}
-                className="bg-white/5 border border-white/10 rounded-2xl p-7 text-center hover:bg-white/10 transition-colors"
-              >
-                <div className="text-4xl mb-4">{c.icon}</div>
-                <div className="text-amber-400 text-xs font-bold tracking-widest uppercase mb-2">{c.role}</div>
-                <h3 className="font-serif text-xl font-bold text-white mb-1">{c.name}</h3>
-                <p className="text-amber-200/60 text-xs mb-4">{c.note}</p>
-                {c.isWhatsApp ? (
-                  <a
-                    href={`https://${c.email}?text=Hello%20Marbith%20Bakery!`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white text-sm font-bold px-5 py-2 rounded-full transition-colors wa-pulse"
-                  >
-                    📲 Chat on WhatsApp
-                  </a>
-                ) : (
-                  <a
-                    href={`mailto:${c.email}`}
-                    className="inline-block text-amber-400 hover:text-amber-300 text-sm font-medium underline underline-offset-2 transition-colors"
-                  >
-                    {c.email}
-                  </a>
-                )}
+            {/* Martha */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-7 text-center hover:bg-white/10 transition-colors">
+              <div className="text-4xl mb-4">👤</div>
+              <div className="text-amber-400 text-xs font-bold tracking-widest uppercase mb-2">General Manager</div>
+              <h3 className="font-serif text-xl font-bold text-white mb-1">Martha Kamazooba Ssali</h3>
+              <p className="text-amber-200/60 text-xs mb-4">Orders, wholesale, partnerships</p>
+              <div className="flex flex-col gap-2 items-center">
+                <a
+                  href={`https://wa.me/${WA_MARTHA}?text=Hello%20Marbith%20Bakery!`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white text-sm font-bold px-5 py-2 rounded-full transition-colors wa-pulse"
+                >
+                  📲 +256 786 111030
+                </a>
+                <a href="mailto:martha@marbithbakery.com" className="text-amber-400 hover:text-amber-300 text-xs underline underline-offset-2">
+                  martha@marbithbakery.com
+                </a>
               </div>
-            ))}
+            </div>
+
+            {/* Shadrach */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-7 text-center hover:bg-white/10 transition-colors">
+              <div className="text-4xl mb-4">💻</div>
+              <div className="text-amber-400 text-xs font-bold tracking-widest uppercase mb-2">Operations & Tech</div>
+              <h3 className="font-serif text-xl font-bold text-white mb-1">Shadrach Ssali</h3>
+              <p className="text-amber-200/60 text-xs mb-4">System, online orders, tech support</p>
+              <div className="flex flex-col gap-2 items-center">
+                <a
+                  href={`https://wa.me/${WA_SHADRACH}?text=Hello%20Marbith%20Bakery!`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white text-sm font-bold px-5 py-2 rounded-full transition-colors wa-pulse"
+                >
+                  📲 +256 751 900731
+                </a>
+                <a href="mailto:ssalishadrach31@gmail.com" className="text-amber-400 hover:text-amber-300 text-xs underline underline-offset-2">
+                  ssalishadrach31@gmail.com
+                </a>
+              </div>
+            </div>
+
+            {/* WhatsApp Orders */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-7 text-center hover:bg-white/10 transition-colors">
+              <div className="text-4xl mb-4">📱</div>
+              <div className="text-amber-400 text-xs font-bold tracking-widest uppercase mb-2">WhatsApp Orders</div>
+              <h3 className="font-serif text-xl font-bold text-white mb-1">Order via WhatsApp</h3>
+              <p className="text-amber-200/60 text-xs mb-4">Fastest way to place your order</p>
+              <a
+                href={`https://wa.me/${WA_MARTHA}?text=Hello%20Marbith%20Bakery!%20I'd%20like%20to%20place%20an%20order.`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white text-sm font-bold px-5 py-2 rounded-full transition-colors wa-pulse"
+              >
+                📲 Chat on WhatsApp
+              </a>
+            </div>
           </div>
 
           {/* CTA banner */}
@@ -707,8 +742,13 @@ export default function App() {
                 </div>
               </div>
               <p className="text-stone-400 text-sm leading-relaxed max-w-xs">
-                Kampala's finest artisan bakery since 2015. Freshly baked daily, delivered with love from Namasuba.
+                Kampala's finest artisan bakery, established 2024. Freshly baked daily, delivered with love from Namasuba Parish.
               </p>
+              <div className="mt-3 text-xs text-stone-500 space-y-1">
+                <p>🏪 Totala Business Centre, Shop TBC 3-55</p>
+                <p>Nabugabo Street, Kampala</p>
+                <p>🏭 Namasuba Parish, Kampala</p>
+              </div>
             </div>
             <div>
               <h4 className="font-semibold text-stone-200 mb-3">Quick Links</h4>
@@ -730,15 +770,19 @@ export default function App() {
             <div>
               <h4 className="font-semibold text-stone-200 mb-3">Contact</h4>
               <ul className="space-y-2 text-sm">
-                <li>📍 Namasuba, Kampala, Uganda</li>
                 <li>
-                  <a href="mailto:martha@marbithbakery.com" className="hover:text-amber-400 transition-colors">
-                    martha@marbithbakery.com
+                  <a href={`https://wa.me/${WA_MARTHA}`} target="_blank" rel="noopener noreferrer" className="hover:text-green-400 transition-colors">
+                    📲 Martha: +256 786 111030
                   </a>
                 </li>
                 <li>
-                  <a href="mailto:shadrachssali@gmail.com" className="hover:text-amber-400 transition-colors">
-                    shadrachssali@gmail.com
+                  <a href={`https://wa.me/${WA_SHADRACH}`} target="_blank" rel="noopener noreferrer" className="hover:text-green-400 transition-colors">
+                    📲 Shadrach: +256 751 900731
+                  </a>
+                </li>
+                <li>
+                  <a href="mailto:martha@marbithbakery.com" className="hover:text-amber-400 transition-colors">
+                    martha@marbithbakery.com
                   </a>
                 </li>
                 <li>
@@ -759,9 +803,37 @@ export default function App() {
         </div>
       </footer>
 
+      {/* ── DEVELOPER CREDIT ────────────────────────────── */}
+      <div className="bg-stone-950 text-stone-500 py-4 px-4 text-center text-xs border-t border-stone-800">
+        <div className="container-max flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-6">
+          <span className="text-stone-400 font-medium">🛠 Website designed &amp; built by</span>
+          <span className="text-amber-500 font-bold text-sm">Shadrach Ssali</span>
+          <span className="hidden sm:inline text-stone-700">|</span>
+          <span>Full-Stack Web Developer · Kampala, Uganda</span>
+          <span className="hidden sm:inline text-stone-700">|</span>
+          <div className="flex items-center gap-3">
+            <a
+              href={`https://wa.me/${WA_SHADRACH}?text=Hi%20Shadrach%2C%20I%20saw%20your%20work%20on%20Marbith%20Bakery%20and%20I%27d%20like%20to%20hire%20you.`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-green-500 hover:text-green-400 font-medium transition-colors"
+            >
+              📲 +256 751 900731
+            </a>
+            <span className="text-stone-700">·</span>
+            <a
+              href="mailto:ssalishadrach31@gmail.com"
+              className="text-amber-500 hover:text-amber-400 transition-colors"
+            >
+              ssalishadrach31@gmail.com
+            </a>
+          </div>
+        </div>
+      </div>
+
       {/* Floating WhatsApp button */}
       <a
-        href="https://wa.me/256700000000?text=Hello%20Marbith%20Bakery!%20I'd%20like%20to%20place%20an%20order."
+        href={`https://wa.me/${WA_MARTHA}?text=Hello%20Marbith%20Bakery!%20I'd%20like%20to%20place%20an%20order.`}
         target="_blank"
         rel="noopener noreferrer"
         className="fixed bottom-6 right-6 z-50 bg-green-500 hover:bg-green-400 text-white w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-lg wa-pulse transition-transform hover:scale-110"
