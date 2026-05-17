@@ -5,6 +5,10 @@ import birthdayCakeImg from "@assets/WhatsApp_Image_2026-05-17_at_5.08.55_PM_177
 import caramelCakeImg from "@assets/WhatsApp_Image_2026-05-17_at_5.08.56_PM_(1)_1779025116563.jpeg";
 import graduationCakeImg from "@assets/WhatsApp_Image_2026-05-17_at_5.08.56_PM_1779025116564.jpeg";
 import menuDisplayImg from "@assets/image_ed210f43_1779024948588.png";
+import chapattisImg from "@assets/Screenshot_2026-05-17_180902_1779027079544.png";
+import plainDonutsImg from "@assets/Screenshot_2026-05-17_180938_1779027079545.png";
+import americanDonutsImg from "@assets/Screenshot_2026-05-17_180956_1779027079546.png";
+import vanillaMuffinsImg from "@assets/Screenshot_2026-05-17_181045_1779027079546.png";
 
 // Curated Unsplash images matched to each product name
 const PRODUCT_IMAGES: Record<string, string> = {
@@ -12,16 +16,16 @@ const PRODUCT_IMAGES: Record<string, string> = {
   "Rock Bun":         "https://images.unsplash.com/photo-1568254183919-78a4f43a2877?w=600&fit=crop&q=85",
   "Cakes (6pcs)":     "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=600&fit=crop&q=85",
   "Madeira Cake":     "https://images.unsplash.com/photo-1464349153735-7db50ed83c84?w=600&fit=crop&q=85",
-  "Vanilla Muffins":  "https://images.unsplash.com/photo-1607958996333-41aef7caefaa?w=600&fit=crop&q=85",
+  "Vanilla Muffins":  vanillaMuffinsImg,
   "Egg Rolls":        "https://images.unsplash.com/photo-1562802378-063ec186a863?w=600&fit=crop&q=85",
   "Sumbusa":          "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&fit=crop&q=85",
-  "Chapattis":        "https://images.unsplash.com/photo-1574894709920-11b28be1af98?w=600&fit=crop&q=85",
+  "Chapattis":        chapattisImg,
   "Mandazi (6pcs)":   "https://images.unsplash.com/photo-1551024601-bec78aea704b?w=600&fit=crop&q=85",
-  "Plain Donuts":     "https://images.unsplash.com/photo-1527904324834-3bda86da6771?w=600&fit=crop&q=85",
+  "Plain Donuts":     plainDonutsImg,
   "Cookies":          "https://images.unsplash.com/photo-1499636136210-6f4ee915583e?w=600&fit=crop&q=85",
   "Cinnamon Roll":    "https://images.unsplash.com/photo-1509365465985-25d11c17e812?w=600&fit=crop&q=85",
   "Teabites":         "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=600&fit=crop&q=85",
-  "American Donuts":  "https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e?w=600&fit=crop&q=85",
+  "American Donuts":  americanDonutsImg,
   "Loaf Bread":       "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=600&fit=crop&q=85",
   "Juice":            "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=600&fit=crop&q=85",
   "Tea":              "https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=600&fit=crop&q=85",
