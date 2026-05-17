@@ -5,6 +5,7 @@ import birthdayCakeImg from "@assets/WhatsApp_Image_2026-05-17_at_5.08.55_PM_177
 import caramelCakeImg from "@assets/WhatsApp_Image_2026-05-17_at_5.08.56_PM_(1)_1779025116563.jpeg";
 import graduationCakeImg from "@assets/WhatsApp_Image_2026-05-17_at_5.08.56_PM_1779025116564.jpeg";
 import menuDisplayImg from "@assets/image_ed210f43_1779024948588.png";
+import cakes6pcsImg from "@assets/Screenshot_2026-05-17_183140_1779028332743.png";
 import chapattisImg from "@assets/Screenshot_2026-05-17_180902_1779027079544.png";
 import plainDonutsImg from "@assets/Screenshot_2026-05-17_180938_1779027079545.png";
 import americanDonutsImg from "@assets/Screenshot_2026-05-17_180956_1779027079546.png";
@@ -14,7 +15,7 @@ import vanillaMuffinsImg from "@assets/Screenshot_2026-05-17_181045_177902707954
 const PRODUCT_IMAGES: Record<string, string> = {
   "Pizza":            "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&fit=crop&q=85",
   "Rock Bun":         "https://images.unsplash.com/photo-1568254183919-78a4f43a2877?w=600&fit=crop&q=85",
-  "Cakes (6pcs)":     "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=600&fit=crop&q=85",
+  "Cakes (6pcs)":     cakes6pcsImg,
   "Madeira Cake":     "https://images.unsplash.com/photo-1464349153735-7db50ed83c84?w=600&fit=crop&q=85",
   "Vanilla Muffins":  vanillaMuffinsImg,
   "Egg Rolls":        "https://images.unsplash.com/photo-1562802378-063ec186a863?w=600&fit=crop&q=85",
