@@ -11,8 +11,6 @@ services:
         value: production
       - key: DATABASE_URL
         sync: false
-      - key: COCKROACH_DATABASE_URL
-        sync: false
       - key: SESSION_SECRET
         sync: false
       - key: CORS_ORIGIN
