@@ -8,23 +8,24 @@ import menuDisplayImg from "@assets/image_ed210f43_1779024948588.png";
 
 // Curated Unsplash images matched to each product name
 const PRODUCT_IMAGES: Record<string, string> = {
-  "Pizza":            "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&fit=crop&q=80",
-  "Rock Bun":         "https://images.unsplash.com/photo-1568254183919-78a4f43a2877?w=500&fit=crop&q=80",
-  "Cakes (6pcs)":     "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=500&fit=crop&q=80",
-  "Madeira Cake":     "https://images.unsplash.com/photo-1464349153735-7db50ed83c84?w=500&fit=crop&q=80",
-  "Vanilla Muffins":  "https://images.unsplash.com/photo-1607958996333-41aef7caefaa?w=500&fit=crop&q=80",
-  "Egg Rolls":        "https://images.unsplash.com/photo-1562802378-063ec186a863?w=500&fit=crop&q=80",
-  "Sumbusa":          "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=500&fit=crop&q=80",
-  "Chapattis":        "https://images.unsplash.com/photo-1574894709920-11b28be1af98?w=500&fit=crop&q=80",
-  "Mandazi (6pcs)":   "https://images.unsplash.com/photo-1551024601-bec78aea704b?w=500&fit=crop&q=80",
-  "Plain Donuts":     "https://images.unsplash.com/photo-1527904324834-3bda86da6771?w=500&fit=crop&q=80",
-  "Cookies":          "https://images.unsplash.com/photo-1499636136210-6f4ee915583e?w=500&fit=crop&q=80",
-  "Cinnamon Roll":    "https://images.unsplash.com/photo-1509365465985-25d11c17e812?w=500&fit=crop&q=80",
-  "Teabites":         "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=500&fit=crop&q=80",
-  "American Donuts":  "https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e?w=500&fit=crop&q=80",
-  "Juice":            "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=500&fit=crop&q=80",
-  "Tea":              "https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=500&fit=crop&q=80",
-  "Coffee":           "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=500&fit=crop&q=80",
+  "Pizza":            "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=600&fit=crop&q=85",
+  "Rock Bun":         "https://images.unsplash.com/photo-1568254183919-78a4f43a2877?w=600&fit=crop&q=85",
+  "Cakes (6pcs)":     "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=600&fit=crop&q=85",
+  "Madeira Cake":     "https://images.unsplash.com/photo-1464349153735-7db50ed83c84?w=600&fit=crop&q=85",
+  "Vanilla Muffins":  "https://images.unsplash.com/photo-1607958996333-41aef7caefaa?w=600&fit=crop&q=85",
+  "Egg Rolls":        "https://images.unsplash.com/photo-1562802378-063ec186a863?w=600&fit=crop&q=85",
+  "Sumbusa":          "https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&fit=crop&q=85",
+  "Chapattis":        "https://images.unsplash.com/photo-1574894709920-11b28be1af98?w=600&fit=crop&q=85",
+  "Mandazi (6pcs)":   "https://images.unsplash.com/photo-1551024601-bec78aea704b?w=600&fit=crop&q=85",
+  "Plain Donuts":     "https://images.unsplash.com/photo-1527904324834-3bda86da6771?w=600&fit=crop&q=85",
+  "Cookies":          "https://images.unsplash.com/photo-1499636136210-6f4ee915583e?w=600&fit=crop&q=85",
+  "Cinnamon Roll":    "https://images.unsplash.com/photo-1509365465985-25d11c17e812?w=600&fit=crop&q=85",
+  "Teabites":         "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=600&fit=crop&q=85",
+  "American Donuts":  "https://images.unsplash.com/photo-1586985289688-ca3cf47d3e6e?w=600&fit=crop&q=85",
+  "Loaf Bread":       "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=600&fit=crop&q=85",
+  "Juice":            "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=600&fit=crop&q=85",
+  "Tea":              "https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=600&fit=crop&q=85",
+  "Coffee":           "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=600&fit=crop&q=85",
 };
 
 const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=500&fit=crop&q=80";
@@ -50,12 +51,11 @@ function getProductImage(name: string): string {
   return FALLBACK_IMAGE;
 }
 
-// Frontend categories (ordered for display)
-const FRONTEND_CATEGORY_ORDER = [
-  { key: "cakes",   label: "Cakes & Sweets",        emoji: "🎂", names: ["Cakes (6pcs)", "Madeira Cake", "Vanilla Muffins"] },
-  { key: "donuts",  label: "Donuts & Fried Dough",   emoji: "🍩", names: ["Plain Donuts", "American Donuts", "Mandazi (6pcs)"] },
-  { key: "pastries",label: "Pastries & Baked Bites", emoji: "🥐", names: ["Cinnamon Roll", "Egg Rolls", "Rock Bun", "Teabites", "Cookies"] },
-  { key: "savoury", label: "Savoury",                emoji: "🥙", names: ["Pizza", "Sumbusa", "Chapattis"] },
+// Display order for products on the public menu
+const DISPLAY_ORDER = [
+  "Loaf Bread","Rock Bun","Chapattis","Mandazi (6pcs)","Plain Donuts","American Donuts",
+  "Cakes (6pcs)","Madeira Cake","Vanilla Muffins","Cinnamon Roll","Egg Rolls","Teabites",
+  "Cookies","Sumbusa","Pizza","Juice","Tea","Coffee",
 ];
 
 interface Product {
@@ -91,7 +91,6 @@ export default function App() {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const scrollY = useScrollY();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("cakes");
 
   useEffect(() => {
     fetch(`${API_BASE}/products`)
@@ -101,24 +100,15 @@ export default function App() {
       .finally(() => setLoadingProducts(false));
   }, []);
 
-  // Assign each product to a frontend category
-  function assignCategory(name: string) {
-    for (const cat of FRONTEND_CATEGORY_ORDER) {
-      if (cat.names.some((n) => name.toLowerCase().includes(n.toLowerCase()) || n.toLowerCase().includes(name.toLowerCase()))) {
-        return cat.key;
-      }
-    }
-    return "pastries"; // default
-  }
-
-  const categorised: Record<string, Product[]> = {};
-  for (const cat of FRONTEND_CATEGORY_ORDER) categorised[cat.key] = [];
-  for (const p of products) {
-    const key = assignCategory(p.name);
-    categorised[key].push(p);
-  }
-  // Anything not matched goes into pastries
-  const tabProducts = categorised[activeTab] ?? [];
+  // Sort products by preferred display order, remaining ones appended at end
+  const sortedProducts = [...products].sort((a, b) => {
+    const ai = DISPLAY_ORDER.indexOf(a.name);
+    const bi = DISPLAY_ORDER.indexOf(b.name);
+    if (ai === -1 && bi === -1) return 0;
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -217,47 +207,33 @@ export default function App() {
           </div>
 
           {/* Menu showcase photo */}
-          <div className="mb-10 rounded-3xl overflow-hidden shadow-xl">
-            <img src={menuDisplayImg} alt="Marbith Bakery full menu display" className="w-full object-cover max-h-80 md:max-h-96" />
+          <div className="mb-12 rounded-3xl overflow-hidden shadow-2xl">
+            <img src={menuDisplayImg} alt="Marbith Bakery full menu display" className="w-full object-cover max-h-72 md:max-h-96" />
           </div>
 
-          {/* Category tabs */}
-          <div className="flex flex-wrap gap-2 justify-center mb-8">
-            {FRONTEND_CATEGORY_ORDER.map((cat) => (
-              <button
-                key={cat.key}
-                onClick={() => setActiveTab(cat.key)}
-                className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 ${
-                  activeTab === cat.key
-                    ? "bg-amber-600 text-white shadow-md"
-                    : "bg-white text-stone-600 border border-stone-200 hover:border-amber-300 hover:text-amber-700"
-                }`}
-              >
-                {cat.emoji} {cat.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Products grid */}
+          {/* Individual product cards — all visible at once */}
           {loadingProducts ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="bg-white rounded-2xl overflow-hidden animate-pulse">
-                  <div className="h-48 bg-stone-200" />
-                  <div className="p-4 space-y-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-3xl overflow-hidden animate-pulse shadow-sm">
+                  <div className="h-52 bg-stone-200" />
+                  <div className="p-4 space-y-3">
                     <div className="h-4 bg-stone-200 rounded w-3/4" />
                     <div className="h-5 bg-amber-100 rounded w-1/2" />
+                    <div className="h-9 bg-stone-100 rounded-full" />
                   </div>
                 </div>
               ))}
             </div>
-          ) : tabProducts.length === 0 ? (
-            <div className="text-center py-12 text-stone-400">No products in this category yet.</div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {tabProducts.map((p) => (
-                <div key={p.id} className="product-card bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100 group">
-                  <div className="relative overflow-hidden h-48">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              {sortedProducts.map((p) => (
+                <div
+                  key={p.id}
+                  className="group bg-white rounded-3xl overflow-hidden shadow-md border border-stone-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col"
+                >
+                  {/* Photo */}
+                  <div className="relative overflow-hidden h-52 flex-shrink-0">
                     <img
                       src={getProductImage(p.name)}
                       alt={p.name}
@@ -265,27 +241,35 @@ export default function App() {
                       loading="lazy"
                       onError={(e) => { (e.target as HTMLImageElement).src = FALLBACK_IMAGE; }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-stone-900/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    <div className="absolute bottom-3 inset-x-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <a href={ORDER_URL} className="block text-center bg-amber-500 text-white text-xs font-bold py-2 rounded-full hover:bg-amber-400 transition-colors">
-                        Order This →
-                      </a>
+                    {/* Price badge on image */}
+                    <div className="absolute top-3 right-3 bg-amber-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow">
+                      {formatUGX(p.price)}
                     </div>
                   </div>
-                  <div className="p-4">
-                    <h3 className="font-semibold text-stone-800 mb-1 text-sm leading-tight">{p.name}</h3>
-                    <span className="font-serif font-bold text-amber-700 text-lg">{formatUGX(p.price)}</span>
+
+                  {/* Info + button */}
+                  <div className="p-4 flex flex-col gap-3 flex-1">
+                    <h3 className="font-serif font-bold text-stone-800 text-base leading-tight">{p.name}</h3>
+                    <p className="text-stone-400 text-xs">
+                      {p.unit ? `Per ${p.unit}` : "Per piece"} · Freshly made daily
+                    </p>
+                    <a
+                      href={ORDER_URL}
+                      className="mt-auto block text-center bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold py-2.5 rounded-full transition-colors shadow-sm hover:shadow-amber-400/40"
+                    >
+                      🛒 Place Order
+                    </a>
                   </div>
                 </div>
               ))}
             </div>
           )}
 
-          <div className="text-center mt-12">
-            <a href={ORDER_URL} className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-bold px-10 py-4 rounded-full text-lg transition-all duration-200 shadow-lg hover:shadow-amber-600/30 hover:scale-105">
-              🛒 Place an Order Now
+          <div className="text-center mt-14">
+            <p className="text-stone-500 text-base mb-4">Want everything in one go? Place a full order online.</p>
+            <a href={ORDER_URL} className="inline-flex items-center gap-2 bg-stone-900 hover:bg-stone-700 text-white font-bold px-10 py-4 rounded-full text-lg transition-all duration-200 shadow-lg hover:scale-105">
+              🛒 Order Now
             </a>
-            <p className="text-stone-400 text-sm mt-3">Order online and we'll have it ready for pickup or delivery.</p>
           </div>
         </div>
       </section>
