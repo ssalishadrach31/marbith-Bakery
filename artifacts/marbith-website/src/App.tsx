@@ -106,7 +106,7 @@ function useScrollY() {
 }
 
 const API_BASE   = (import.meta.env.VITE_API_URL  || "").replace(/\/$/, "") + "/api";
-const ORDER_URL  = import.meta.env.VITE_ORDER_URL  || "/order";
+const ORDER_URL  = import.meta.env.VITE_ORDER_URL  || "https://marbith-bakery.onrender.com/order";
 const WEB_APP_URL = "/";
 const WA_MARTHA   = "256786111030";
 const WA_SHADRACH = "256751900731";
