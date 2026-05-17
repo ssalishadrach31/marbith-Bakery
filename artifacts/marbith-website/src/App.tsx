@@ -105,17 +105,244 @@ function useScrollY() {
   return y;
 }
 
-const API_BASE   = (import.meta.env.VITE_API_URL  || "").replace(/\/$/, "") + "/api";
-const ORDER_URL  = import.meta.env.VITE_ORDER_URL  || "https://marbith-bakery.onrender.com/order";
+const API_BASE    = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "") + "/api";
 const WEB_APP_URL = "/";
 const WA_MARTHA   = "256786111030";
 const WA_SHADRACH = "256751900731";
 
+// ── ORDER MODAL ─────────────────────────────────────────────────────────────
+function OrderModal({ open, onClose, products, apiBase }: {
+  open: boolean; onClose: () => void; products: Product[]; apiBase: string;
+}) {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [cart, setCart] = useState<Record<number, number>>({});
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "mtn_momo" | "airtel_money">("cash");
+  const [txId, setTxId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [orderId, setOrderId] = useState<number | null>(null);
+  const [formError, setFormError] = useState("");
+
+  useEffect(() => {
+    if (!open) {
+      const t = setTimeout(() => {
+        setStep(1); setCart({}); setName(""); setPhone(""); setAddress("");
+        setPaymentMethod("cash"); setTxId(""); setSubmitting(false);
+        setOrderId(null); setFormError("");
+      }, 300);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [open]);
+
+  const cartItems = Object.entries(cart)
+    .filter(([, qty]) => qty > 0)
+    .map(([id, quantity]) => ({ productId: Number(id), quantity }));
+
+  const total = cartItems.reduce((sum, item) => {
+    const p = products.find((pr) => pr.id === item.productId);
+    return sum + (p?.price ?? 0) * item.quantity;
+  }, 0);
+
+  const setQty = (id: number, qty: number) =>
+    setCart((prev) => ({ ...prev, [id]: Math.max(0, qty) }));
+
+  const handleSubmit = async () => {
+    if (!name.trim() || !phone.trim() || !address.trim()) {
+      setFormError("Please fill in all required fields."); return;
+    }
+    if (cartItems.length === 0) {
+      setFormError("Please add at least one item."); return;
+    }
+    setSubmitting(true); setFormError("");
+    try {
+      const res = await fetch(`${apiBase}/orders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName: name.trim(),
+          customerPhone: phone.trim(),
+          deliveryLocation: address.trim(),
+          paymentMethod,
+          transactionId: txId.trim() || undefined,
+          items: cartItems,
+        }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data = await res.json();
+      setOrderId(data.id);
+    } catch {
+      setFormError("Could not place order. Please try WhatsApp instead.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-lg max-h-[92vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 bg-amber-50 border-b border-amber-100 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🛒</span>
+            <div>
+              <h2 className="font-serif font-bold text-stone-800">Place Your Order</h2>
+              <p className="text-xs text-stone-500">Marbith Bakery & Investments</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-stone-200 hover:bg-stone-300 flex items-center justify-center text-stone-600 text-sm font-bold transition-colors">✕</button>
+        </div>
+
+        {/* Success screen */}
+        {orderId !== null ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
+            <div className="text-6xl mb-4">🎉</div>
+            <h3 className="font-serif text-2xl font-bold text-stone-800 mb-2">Order Placed!</h3>
+            <p className="text-stone-500 mb-1">Order <span className="font-bold text-amber-700">#{orderId}</span> has been received.</p>
+            <p className="text-stone-400 text-sm mb-8">We'll call <strong>{phone}</strong> to confirm your delivery.</p>
+            <div className="flex flex-wrap gap-3 justify-center">
+              <a href={`https://wa.me/256786111030?text=Hi%20Marbith%20Bakery!%20I%20just%20placed%20order%20%23${orderId}.`}
+                target="_blank" rel="noopener noreferrer"
+                className="bg-green-500 hover:bg-green-600 text-white font-bold px-6 py-2.5 rounded-full text-sm transition-colors">
+                📲 Confirm on WhatsApp
+              </a>
+              <button onClick={onClose} className="bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold px-6 py-2.5 rounded-full text-sm transition-colors">Close</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Step tabs */}
+            <div className="flex border-b border-stone-100 flex-shrink-0">
+              {(["1. Select Items", "2. Your Details"] as const).map((label, i) => (
+                <button key={label} onClick={() => { if (i === 0) setStep(1); }}
+                  className={`flex-1 py-3 text-sm font-semibold transition-colors ${step === i + 1 ? "text-amber-700 border-b-2 border-amber-600 bg-amber-50/40" : "text-stone-400"}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {step === 1 ? (
+                <div className="p-5">
+                  {products.length === 0 ? (
+                    <p className="text-stone-400 text-center py-10">Loading products…</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {products.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between py-2.5 border-b border-stone-50 last:border-0">
+                          <div className="flex-1 min-w-0 mr-4">
+                            <span className="font-medium text-stone-800 text-sm">{p.name}</span>
+                            <span className="text-amber-600 text-xs font-bold ml-2">{formatUGX(p.price)}</span>
+                            {p.unit && <span className="text-stone-400 text-xs ml-1">/ {p.unit}</span>}
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <button onClick={() => setQty(p.id, (cart[p.id] || 0) - 1)}
+                              className="w-7 h-7 rounded-full bg-stone-100 hover:bg-amber-100 text-stone-600 font-bold flex items-center justify-center transition-colors">−</button>
+                            <span className="w-5 text-center font-bold text-stone-800 text-sm">{cart[p.id] || 0}</span>
+                            <button onClick={() => setQty(p.id, (cart[p.id] || 0) + 1)}
+                              className="w-7 h-7 rounded-full bg-amber-600 hover:bg-amber-500 text-white font-bold flex items-center justify-center transition-colors">+</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-5 space-y-4">
+                  {cartItems.length > 0 && (
+                    <div className="bg-amber-50 rounded-2xl p-4">
+                      <p className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-2">Order Summary</p>
+                      {cartItems.map((item) => {
+                        const p = products.find((pr) => pr.id === item.productId);
+                        return p ? (
+                          <div key={item.productId} className="flex justify-between text-sm text-stone-700">
+                            <span>{p.name} × {item.quantity}</span>
+                            <span className="font-medium">{formatUGX(p.price * item.quantity)}</span>
+                          </div>
+                        ) : null;
+                      })}
+                      <div className="border-t border-amber-200 mt-2 pt-2 flex justify-between font-bold text-stone-800 text-sm">
+                        <span>Total</span><span className="text-amber-700">{formatUGX(total)}</span>
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-1">Full Name *</label>
+                    <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Sarah Nakato"
+                      className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-1">Phone Number *</label>
+                    <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+256 7XX XXX XXX" type="tel"
+                      className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-1">Delivery Address *</label>
+                    <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="e.g. Ntinda, Plot 12, near Shell petrol station"
+                      className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Payment Method *</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {([["cash","💵 Cash"],["mtn_momo","🟡 MTN MoMo"],["airtel_money","🔴 Airtel"]] as const).map(([val, label]) => (
+                        <button key={val} onClick={() => setPaymentMethod(val)}
+                          className={`py-2.5 rounded-xl text-xs font-bold border-2 transition-colors ${paymentMethod === val ? "border-amber-500 bg-amber-50 text-amber-700" : "border-stone-200 text-stone-500 hover:border-amber-200"}`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {paymentMethod !== "cash" && (
+                    <div>
+                      <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-1">Transaction ID <span className="text-stone-400 normal-case font-normal">(optional)</span></label>
+                      <input value={txId} onChange={(e) => setTxId(e.target.value)} placeholder="e.g. AB12345678"
+                        className="w-full border border-stone-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400" />
+                    </div>
+                  )}
+                  {formError && <p className="text-red-600 text-sm bg-red-50 rounded-xl px-4 py-2">{formError}</p>}
+                </div>
+              )}
+            </div>
+
+            {/* Action footer */}
+            <div className="px-5 py-4 border-t border-stone-100 bg-stone-50 flex justify-between items-center gap-3 flex-shrink-0">
+              {step === 1 ? (
+                <>
+                  <p className="text-xs text-stone-400">{cartItems.length} item{cartItems.length !== 1 ? "s" : ""} · {formatUGX(total)}</p>
+                  <button onClick={() => { if (cartItems.length === 0) { setFormError("Add at least one item first."); return; } setFormError(""); setStep(2); }}
+                    className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-7 py-2.5 rounded-full text-sm transition-colors">
+                    Next: Details →
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => setStep(1)} className="text-stone-500 hover:text-stone-800 text-sm font-medium transition-colors">← Back</button>
+                  <button onClick={handleSubmit} disabled={submitting}
+                    className="bg-amber-600 hover:bg-amber-500 disabled:opacity-60 text-white font-bold px-7 py-2.5 rounded-full text-sm transition-colors">
+                    {submitting ? "Placing…" : "🛒 Confirm Order"}
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const scrollY = useScrollY();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [orderOpen, setOrderOpen] = useState(false);
 
   useEffect(() => {
     fetch(`${API_BASE}/products`)
@@ -157,7 +384,7 @@ export default function App() {
             {[["#products","Our Menu"],["#custom-cakes","Custom Cakes"],["#why-us","Why Us"],["#wholesale","Wholesale"],["#location","Location"],["#contact","Contact"]].map(([href,label])=>(
               <a key={href} href={href} className={`text-sm font-medium transition-colors hover:text-amber-500 ${scrollY > 60 ? "text-stone-700" : "text-white/90"}`}>{label}</a>
             ))}
-            <a href={ORDER_URL} className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-5 py-2 rounded-full transition-colors shadow">Order Now</a>
+            <button onClick={() => setOrderOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-5 py-2 rounded-full transition-colors shadow">Order Now</button>
           </div>
 
           <button className="md:hidden p-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -173,7 +400,7 @@ export default function App() {
               {[["#products","Our Menu"],["#custom-cakes","Custom Cakes"],["#why-us","Why Us"],["#wholesale","Wholesale"],["#location","Location"],["#contact","Contact"]].map(([href,label])=>(
                 <a key={href} href={href} onClick={()=>setMobileMenuOpen(false)} className="text-stone-700 font-medium">{label}</a>
               ))}
-              <a href={ORDER_URL} className="bg-amber-600 text-white text-center font-semibold px-5 py-2 rounded-full">Order Now</a>
+              <button onClick={() => { setMobileMenuOpen(false); setOrderOpen(true); }} className="bg-amber-600 text-white text-center font-semibold px-5 py-2 rounded-full">Order Now</button>
             </div>
           </div>
         )}
@@ -197,9 +424,9 @@ export default function App() {
             we bake with passion every single day — for individuals, families, and businesses across Uganda.
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
-            <a href={ORDER_URL} className="bg-amber-500 hover:bg-amber-400 text-stone-900 font-bold px-8 py-4 rounded-full text-lg transition-all duration-200 shadow-lg hover:shadow-amber-500/40 hover:scale-105">
+            <button onClick={() => setOrderOpen(true)} className="bg-amber-500 hover:bg-amber-400 text-stone-900 font-bold px-8 py-4 rounded-full text-lg transition-all duration-200 shadow-lg hover:shadow-amber-500/40 hover:scale-105">
               Place an Order
-            </a>
+            </button>
             <a href="#products" className="bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/30 text-white font-semibold px-8 py-4 rounded-full text-lg transition-all duration-200">
               See Our Menu ↓
             </a>
@@ -282,12 +509,12 @@ export default function App() {
                     <p className="text-stone-400 text-xs">
                       {p.unit ? `Per ${p.unit}` : "Per piece"} · Freshly made daily
                     </p>
-                    <a
-                      href={ORDER_URL}
-                      className="mt-auto block text-center bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold py-2.5 rounded-full transition-colors shadow-sm hover:shadow-amber-400/40"
+                    <button
+                      onClick={() => setOrderOpen(true)}
+                      className="mt-auto block text-center bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold py-2.5 rounded-full transition-colors shadow-sm hover:shadow-amber-400/40 w-full"
                     >
                       🛒 Place Order
-                    </a>
+                    </button>
                   </div>
                 </div>
               ))}
@@ -296,9 +523,9 @@ export default function App() {
 
           <div className="text-center mt-14">
             <p className="text-stone-500 text-base mb-4">Want everything in one go? Place a full order online.</p>
-            <a href={ORDER_URL} className="inline-flex items-center gap-2 bg-stone-900 hover:bg-stone-700 text-white font-bold px-10 py-4 rounded-full text-lg transition-all duration-200 shadow-lg hover:scale-105">
+            <button onClick={() => setOrderOpen(true)} className="inline-flex items-center gap-2 bg-stone-900 hover:bg-stone-700 text-white font-bold px-10 py-4 rounded-full text-lg transition-all duration-200 shadow-lg hover:scale-105">
               🛒 Order Now
-            </a>
+            </button>
           </div>
         </div>
       </section>
@@ -466,9 +693,9 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              <a href={ORDER_URL} className="inline-flex items-center gap-3 bg-stone-900 hover:bg-stone-700 text-white font-bold px-8 py-4 rounded-full text-lg transition-colors">
+              <button onClick={() => setOrderOpen(true)} className="inline-flex items-center gap-3 bg-stone-900 hover:bg-stone-700 text-white font-bold px-8 py-4 rounded-full text-lg transition-colors">
                 🛒 Order for Delivery
-              </a>
+              </button>
             </div>
           </div>
         </div>
@@ -567,9 +794,9 @@ export default function App() {
           <div className="bg-gradient-to-r from-amber-600 to-amber-500 rounded-3xl p-10 text-center">
             <h3 className="font-serif text-3xl md:text-4xl font-bold text-white mb-4">Ready to Order?</h3>
             <p className="text-amber-100 text-lg mb-6 max-w-xl mx-auto">Use our online order form and get your favourite baked goods delivered fresh to your door.</p>
-            <a href={ORDER_URL} className="inline-flex items-center gap-2 bg-white text-amber-700 hover:bg-amber-50 font-bold px-10 py-4 rounded-full text-lg transition-colors shadow-lg">
+            <button onClick={() => setOrderOpen(true)} className="inline-flex items-center gap-2 bg-white text-amber-700 hover:bg-amber-50 font-bold px-10 py-4 rounded-full text-lg transition-colors shadow-lg">
               🥐 Order Online Now →
-            </a>
+            </button>
           </div>
         </div>
       </section>
@@ -596,9 +823,10 @@ export default function App() {
             <div>
               <h4 className="font-semibold text-stone-200 mb-3">Quick Links</h4>
               <ul className="space-y-2 text-sm">
-                {[["#products","Our Menu"],["#custom-cakes","Custom Cakes"],["#why-us","Why Us"],["#wholesale","Wholesale"],["#location","Location"],[ORDER_URL,"Place an Order"]].map(([href,label])=>(
+                {[["#products","Our Menu"],["#custom-cakes","Custom Cakes"],["#why-us","Why Us"],["#wholesale","Wholesale"],["#location","Location"]].map(([href,label])=>(
                   <li key={href}><a href={href} className="hover:text-amber-400 transition-colors">{label}</a></li>
                 ))}
+                <li><button onClick={() => setOrderOpen(true)} className="hover:text-amber-400 transition-colors text-left">Place an Order</button></li>
               </ul>
             </div>
             <div>
@@ -629,6 +857,14 @@ export default function App() {
         title="Order via WhatsApp">
         💬
       </a>
+
+      {/* Inline order modal */}
+      <OrderModal
+        open={orderOpen}
+        onClose={() => setOrderOpen(false)}
+        products={sortedProducts}
+        apiBase={API_BASE}
+      />
     </div>
   );
 }
