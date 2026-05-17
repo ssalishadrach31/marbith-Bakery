@@ -39,6 +39,13 @@ const DDL_STATEMENTS = [
   `CREATE SEQUENCE IF NOT EXISTS conversations_id_seq AS INT`,
   `CREATE SEQUENCE IF NOT EXISTS messages_id_seq AS INT`,
   `CREATE SEQUENCE IF NOT EXISTS shift_closings_id_seq AS INT`,
+  `CREATE SEQUENCE IF NOT EXISTS shops_id_seq AS INT`,
+  `CREATE SEQUENCE IF NOT EXISTS employees_id_seq AS INT`,
+  `CREATE SEQUENCE IF NOT EXISTS users_id_seq AS INT`,
+  `CREATE SEQUENCE IF NOT EXISTS login_logs_id_seq AS INT`,
+  `CREATE SEQUENCE IF NOT EXISTS orders_id_seq AS INT`,
+  `CREATE SEQUENCE IF NOT EXISTS order_items_id_seq AS INT`,
+  `CREATE SEQUENCE IF NOT EXISTS payments_id_seq AS INT`,
 
   // Tables using nextval() to get regular INT IDs
   `CREATE TABLE IF NOT EXISTS products (
@@ -244,6 +251,83 @@ const DDL_STATEMENTS = [
     approved_by TEXT,
     approved_at TIMESTAMPTZ
   )`,
+
+  `CREATE TABLE IF NOT EXISTS shops (
+    id INT PRIMARY KEY DEFAULT nextval('shops_id_seq'),
+    name TEXT NOT NULL,
+    location TEXT NOT NULL,
+    address TEXT,
+    phone TEXT,
+    is_active BOOL NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS employees (
+    id INT PRIMARY KEY DEFAULT nextval('employees_id_seq'),
+    name TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'staff',
+    phone TEXT NOT NULL,
+    email TEXT,
+    salary REAL,
+    join_date TEXT NOT NULL,
+    is_active BOOL NOT NULL DEFAULT true,
+    shop_id INT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS users (
+    id INT PRIMARY KEY DEFAULT nextval('users_id_seq'),
+    username TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'staff',
+    job_title TEXT,
+    employee_id INT,
+    is_active BOOL NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS login_logs (
+    id INT PRIMARY KEY DEFAULT nextval('login_logs_id_seq'),
+    user_id INT NOT NULL REFERENCES users(id),
+    user_name TEXT NOT NULL,
+    role TEXT NOT NULL,
+    login_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ip_address TEXT
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS orders (
+    id INT PRIMARY KEY DEFAULT nextval('orders_id_seq'),
+    customer_name TEXT NOT NULL,
+    customer_phone TEXT NOT NULL,
+    delivery_location TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    total_amount REAL NOT NULL,
+    payment_method TEXT NOT NULL DEFAULT 'cash',
+    transaction_id TEXT,
+    placed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS order_items (
+    id INT PRIMARY KEY DEFAULT nextval('order_items_id_seq'),
+    order_id INT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    product_id INT NOT NULL REFERENCES products(id),
+    quantity INT NOT NULL,
+    unit_price REAL NOT NULL,
+    subtotal REAL NOT NULL
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS payments (
+    id INT PRIMARY KEY DEFAULT nextval('payments_id_seq'),
+    transaction_id TEXT NOT NULL,
+    network TEXT NOT NULL DEFAULT 'cash',
+    amount REAL NOT NULL,
+    phone_number TEXT NOT NULL,
+    order_id INT REFERENCES orders(id),
+    sale_id INT,
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    notes TEXT
+  )`,
 ];
 
 async function main() {
@@ -254,10 +338,12 @@ async function main() {
 
     // Drop and recreate — only safe on a fresh/empty DB
     const tableNames = [
+      "login_logs", "payments", "order_items", "orders",
       "messages", "conversations", "shift_closings", "daily_counts", "shop_receipts",
       "inventory_adjustments", "pending_approvals", "notifications", "salary_payments",
       "attendance", "wholesale_supply_items", "wholesale_supplies", "wholesale_customers",
       "expenses", "deliveries", "sale_items", "sales", "production", "inventory", "products",
+      "users", "employees", "shops",
     ];
     console.log("Dropping existing tables...");
     for (const t of tableNames) {
@@ -270,6 +356,8 @@ async function main() {
       "attendance_id_seq", "salary_payments_id_seq", "notifications_id_seq",
       "pending_approvals_id_seq", "inventory_adjustments_id_seq", "shop_receipts_id_seq",
       "daily_counts_id_seq", "conversations_id_seq", "messages_id_seq", "shift_closings_id_seq",
+      "shops_id_seq", "employees_id_seq", "users_id_seq", "login_logs_id_seq",
+      "orders_id_seq", "order_items_id_seq", "payments_id_seq",
     ];
     for (const s of seqNames) {
       await client.query(`DROP SEQUENCE IF EXISTS ${s} CASCADE`).catch(() => {});
