@@ -23,7 +23,8 @@ function rootRedirectPlugin(basePath: string): Plugin {
   };
 }
 
-const basePath = process.env.BASE_PATH || "/marbith-website/";
+// On Replit use the proxied sub-path; on Vercel (no REPL_ID) default to "/"
+const basePath = process.env.BASE_PATH ?? (process.env.REPL_ID ? "/marbith-website/" : "/");
 
 export default defineConfig({
   base: basePath,
@@ -55,7 +56,7 @@ export default defineConfig({
   },
   root: path.resolve(import.meta.dirname),
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist/public"),
+    outDir: path.resolve(import.meta.dirname, "dist"),
     emptyOutDir: true,
   },
   server: {

@@ -66,9 +66,29 @@ interface Product {
   id: number;
   name: string;
   price: number;
+  unit?: string;
   category: string;
   isActive: boolean;
 }
+
+// Static fallback — shown when the API is unreachable (e.g. Vercel without VITE_API_URL)
+const STATIC_PRODUCTS: Product[] = [
+  { id:1,  name:"Loaf Bread",       price:3500, unit:"loaf",   category:"baked_goods", isActive:true },
+  { id:2,  name:"Rock Bun",          price:1500, unit:"piece",  category:"baked_goods", isActive:true },
+  { id:3,  name:"Chapattis",         price:1000, unit:"piece",  category:"baked_goods", isActive:true },
+  { id:4,  name:"Mandazi (6pcs)",    price:2500, unit:"6pcs",   category:"baked_goods", isActive:true },
+  { id:5,  name:"Plain Donuts",      price:1000, unit:"piece",  category:"baked_goods", isActive:true },
+  { id:6,  name:"American Donuts",   price:2000, unit:"piece",  category:"baked_goods", isActive:true },
+  { id:7,  name:"Cakes (6pcs)",      price:2500, unit:"6pcs",   category:"cakes",       isActive:true },
+  { id:8,  name:"Madeira Cake",      price:1000, unit:"slice",  category:"cakes",       isActive:true },
+  { id:9,  name:"Vanilla Muffins",   price:2000, unit:"piece",  category:"cakes",       isActive:true },
+  { id:10, name:"Cinnamon Roll",     price:1000, unit:"piece",  category:"baked_goods", isActive:true },
+  { id:11, name:"Egg Rolls",         price:2000, unit:"piece",  category:"baked_goods", isActive:true },
+  { id:12, name:"Teabites",          price:3000, unit:"piece",  category:"baked_goods", isActive:true },
+  { id:13, name:"Cookies",           price:1000, unit:"piece",  category:"baked_goods", isActive:true },
+  { id:14, name:"Sumbusa",           price:1000, unit:"piece",  category:"savoury",     isActive:true },
+  { id:15, name:"Pizza",             price:5000, unit:"piece",  category:"savoury",     isActive:true },
+];
 
 function formatUGX(n: number) {
   return `UGX ${Number(n).toLocaleString()}`;
@@ -84,8 +104,8 @@ function useScrollY() {
   return y;
 }
 
-const API_BASE = "/api";
-const ORDER_URL = "/order";
+const API_BASE   = (import.meta.env.VITE_API_URL  || "").replace(/\/$/, "") + "/api";
+const ORDER_URL  = import.meta.env.VITE_ORDER_URL  || "/order";
 const WEB_APP_URL = "/";
 const WA_MARTHA   = "256786111030";
 const WA_SHADRACH = "256751900731";
@@ -100,7 +120,11 @@ export default function App() {
     fetch(`${API_BASE}/products`)
       .then((r) => r.json())
       .then((data: Product[]) => setProducts(data.filter((p) => p.isActive)))
-      .catch(() => {})
+      .catch(() => {
+        // API unavailable (e.g. Vercel deployment without VITE_API_URL set)
+        // Fall back to static product list so the menu always renders
+        setProducts(STATIC_PRODUCTS);
+      })
       .finally(() => setLoadingProducts(false));
   }, []);
 
