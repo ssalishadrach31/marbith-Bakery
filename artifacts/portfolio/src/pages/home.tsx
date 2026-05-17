@@ -50,19 +50,19 @@ export default function Home() {
 
   const experience = [
     {
-      role: "Job Performer",
+      role: "Civil & E&I Job Performer",
       company: "Abu Dhabi National Oil Company (ADNOC)",
       sub: "via Saari Oil Fields Services · ADNOC Approved",
       location: "Abu Dhabi, UAE",
-      period: "Current",
+      period: "Jan 2024 — Present",
       current: true,
     },
     {
-      role: "Technical Contributor",
+      role: "Civil & E&I Job Performer",
       company: "Adyard Abu Dhabi LLC",
-      sub: "",
+      sub: "ADNOC Approved",
       location: "Abu Dhabi, UAE",
-      period: "Previous",
+      period: "Jul 2022 — Dec 2023",
       current: false,
     },
   ];
