@@ -180,7 +180,7 @@ export default function App() {
 
       {/* ── HERO ───────────────────────────────────────── */}
       <section id="home" className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1600&fit=crop&q=85')" }} />
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1608198093002-ad4e005484ec?w=1600&fit=crop&q=85')" }} />
         <div className="absolute inset-0 hero-overlay" />
 
         <div className="relative z-10 text-center text-white px-4 max-w-4xl mx-auto">
