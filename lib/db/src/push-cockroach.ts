@@ -189,9 +189,11 @@ const DDL_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS inventory_adjustments (
     id INT PRIMARY KEY DEFAULT nextval('inventory_adjustments_id_seq'),
     product_id INT NOT NULL REFERENCES products(id),
-    adjustment INT NOT NULL,
+    product_name TEXT NOT NULL DEFAULT '',
+    delta INT NOT NULL,
+    new_stock INT NOT NULL DEFAULT 0,
     reason TEXT,
-    adjusted_by INT,
+    adjusted_by TEXT NOT NULL DEFAULT 'Staff',
     adjusted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
 
