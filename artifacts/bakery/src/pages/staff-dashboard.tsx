@@ -631,7 +631,17 @@ export default function StaffDashboardPage() {
     );
   }
 
-  if (!data) return null;
+  if (!data) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-4">
+      <p className="text-muted-foreground">Could not load dashboard. The server may be waking up.</p>
+      <button
+        onClick={() => refetch()}
+        className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90"
+      >
+        Retry
+      </button>
+    </div>
+  );
 
   const { production, receipts, sales, inventory, accountability, expenses } = data;
   const hasProduction = production.totalUnits > 0;
