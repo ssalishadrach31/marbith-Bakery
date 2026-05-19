@@ -310,12 +310,14 @@ export default function StaffDashboardPage() {
     queryKey: ["staff-dashboard"],
     queryFn: () => apiFetch("/staff-dashboard"),
     refetchInterval: 60_000,
+    staleTime: 20_000,
   });
 
-  const { data: products } = useQuery<any[]>({
-    queryKey: ["products-active"],
-    queryFn: () => apiFetch("/products"),
-  });
+  // Products, inventory, daily counts, shift closings, new-day request and
+  // self-attendance all come bundled in the single staff-dashboard response —
+  // no extra round trips needed.
+  const products: any[] = data?.products ?? [];
+  const fullInventory: any[] = data?.inventory ?? [];
 
   const todayStr = new Date().toISOString().split("T")[0];
   const [countsDate, setCountsDate] = useState(todayStr);
@@ -335,20 +337,16 @@ export default function StaffDashboardPage() {
     ? "Today"
     : new Date(countsDate + "T12:00:00").toLocaleDateString("en-UG", { weekday: "short", day: "numeric", month: "short" });
 
-  const { data: dailyCounts } = useQuery<any[]>({
+  // For today: use bundled data. For past dates: fetch separately.
+  const { data: historicalCounts } = useQuery<any[]>({
     queryKey: ["daily-counts", countsDate],
     queryFn: () => apiFetch(`/daily-counts?date=${countsDate}`),
-    refetchInterval: 30_000,
-    refetchOnMount: "always",
-    staleTime: 0,
+    enabled: !isToday,
+    staleTime: 60_000,
   });
+  const dailyCounts: any[] = isToday ? (data?.dailyCounts ?? []) : (historicalCounts ?? []);
 
-  const { data: fullInventory, refetch: refetchFullInventory } = useQuery<any[]>({
-    queryKey: ["full-inventory"],
-    queryFn: () => apiFetch("/inventory"),
-    staleTime: 30_000,
-    refetchInterval: 120_000,
-  });
+  const refetchFullInventory = refetch;
   const [drinkStockDialog, setDrinkStockDialog] = useState<{ productId: number; productName: string } | null>(null);
   const [drinkStockQty, setDrinkStockQty] = useState("");
   const [drinkStockNote, setDrinkStockNote] = useState("");
@@ -380,23 +378,18 @@ export default function StaffDashboardPage() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  // ── Self check-in / check-out ─────────────────────────────────────────────
-  const { data: selfAttendance, refetch: refetchSelfAttendance } = useQuery<any>({
-    queryKey: ["self-attendance-today"],
-    queryFn: () => apiFetch("/attendance/self-today"),
-    staleTime: 0,
-    refetchInterval: 60_000,
-  });
+  // ── Self check-in / check-out — uses bundled selfAttendance from dashboard ──
+  const selfAttendance: any = data?.selfAttendance ?? null;
   const selfCheckInMutation = useMutation({
     mutationFn: () => apiFetch("/attendance/self-check-in", { method: "POST" }),
-    onSuccess: () => { refetchSelfAttendance(); toast({ title: "Checked In", description: "You have successfully checked in." }); },
+    onSuccess: () => { refetch(); toast({ title: "Checked In", description: "You have successfully checked in." }); },
     onError: (e: any) => toast({ title: "Check-in failed", description: e.message, variant: "destructive" }),
   });
   const selfCheckOutMutation = useMutation({
     mutationFn: (id: number) => apiFetch(`/attendance/self-check-out/${id}`, { method: "PUT" }),
-    onSuccess: (data: any) => {
-      refetchSelfAttendance();
-      const hrs = data?.hoursWorked ? `${Number(data.hoursWorked).toFixed(1)} hrs worked` : "";
+    onSuccess: (res: any) => {
+      refetch();
+      const hrs = res?.hoursWorked ? `${Number(res.hoursWorked).toFixed(1)} hrs worked` : "";
       toast({ title: "Checked Out", description: `You have checked out.${hrs ? " " + hrs : ""}` });
     },
     onError: (e: any) => toast({ title: "Check-out failed", description: e.message, variant: "destructive" }),
@@ -431,27 +424,17 @@ export default function StaffDashboardPage() {
       method: "POST",
       body: JSON.stringify({ fromDate: yesterdayStr, toDate: todayStr }),
     }),
-    onSuccess: (data: any) => {
-      qc.invalidateQueries({ queryKey: ["daily-counts", todayStr] });
-      qc.invalidateQueries({ queryKey: ["staff-dashboard"] });
+    onSuccess: (res: any) => {
+      refetch();
       setShowNewDayDialog(false);
-      toast({ title: "New Day Started!", description: data.message ?? "Opening stock carried forward from yesterday." });
+      toast({ title: "New Day Started!", description: res.message ?? "Opening stock carried forward from yesterday." });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  const { data: shiftClosings } = useQuery<any[]>({
-    queryKey: ["shift-closings"],
-    queryFn: () => apiFetch("/shift-closings"),
-    staleTime: 30_000,
-  });
-
-  // New-day-request: non-admins submit, admins approve
-  const { data: newDayRequest, refetch: refetchNewDayRequest } = useQuery<any>({
-    queryKey: ["new-day-request", todayStr],
-    queryFn: () => apiFetch(`/daily-counts/new-day-request?date=${todayStr}`),
-    refetchInterval: 30_000,
-  });
+  // Shift closings and new-day request come bundled from the dashboard response
+  const shiftClosings: any[] = data?.shiftClosings ?? [];
+  const newDayRequest: any = data?.newDayRequest ?? null;
 
   const requestNewDayMutation = useMutation({
     mutationFn: () => apiFetch("/daily-counts/new-day-request", {
@@ -459,7 +442,7 @@ export default function StaffDashboardPage() {
       body: JSON.stringify({ fromDate: yesterdayStr, toDate: todayStr }),
     }),
     onSuccess: () => {
-      refetchNewDayRequest();
+      refetch();
       setShowNewDayDialog(false);
       toast({ title: "Request Sent!", description: "Your request to start a new day has been sent to admin for approval." });
     },
@@ -469,14 +452,12 @@ export default function StaffDashboardPage() {
   const approveNewDayMutation = useMutation({
     mutationFn: ({ id, action }: { id: number; action: "approve" | "reject" }) =>
       apiFetch(`/daily-counts/new-day-request/${id}`, { method: "PATCH", body: JSON.stringify({ action }) }),
-    onSuccess: (data: any) => {
-      refetchNewDayRequest();
-      qc.invalidateQueries({ queryKey: ["daily-counts", todayStr] });
-      qc.invalidateQueries({ queryKey: ["staff-dashboard"] });
-      if (data.rejected) {
+    onSuccess: (res: any) => {
+      refetch();
+      if (res.rejected) {
         toast({ title: "Request Rejected", description: "The new day request has been rejected." });
       } else {
-        toast({ title: "New Day Approved!", description: data.message });
+        toast({ title: "New Day Approved!", description: res.message });
       }
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -497,8 +478,7 @@ export default function StaffDashboardPage() {
   const closeDayMutation = useMutation({
     mutationFn: () => apiFetch("/shift-closings", { method: "POST", body: JSON.stringify({ shiftDate: todayStr }) }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["shift-closings"] });
-      qc.invalidateQueries({ queryKey: ["shift-history"] });
+      refetch();
       setShowCloseConfirm(false);
       if (role === "admin") {
         toast({ title: "Day Closed", description: `Shift for ${today} has been marked as closed.` });
@@ -508,7 +488,7 @@ export default function StaffDashboardPage() {
     },
     onError: (err: any) => {
       setShowCloseConfirm(false);
-      qc.invalidateQueries({ queryKey: ["shift-closings"] });
+      refetch();
       if (err.message?.includes("already been closed")) {
         toast({ title: "Already Closed", description: "Today's shift was already closed by another admin. Only one closing per day is allowed.", variant: "destructive" });
       } else {
@@ -520,9 +500,9 @@ export default function StaffDashboardPage() {
   const approveCloseMutation = useMutation({
     mutationFn: ({ id, action }: { id: number; action: "approve" | "reject" }) =>
       apiFetch(`/shift-closings/${id}/approve`, { method: "PATCH", body: JSON.stringify({ action }) }),
-    onSuccess: (data: any) => {
-      qc.invalidateQueries({ queryKey: ["shift-closings"] });
-      if (data.deleted) {
+    onSuccess: (res: any) => {
+      refetch();
+      if (res.deleted) {
         toast({ title: "Request Rejected", description: "The close day request has been rejected." });
       } else {
         toast({ title: "Day Closed & Approved", description: "Today's shift has been officially closed." });

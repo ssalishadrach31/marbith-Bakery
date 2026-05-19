@@ -1,7 +1,20 @@
 import { Router, type IRouter } from "express";
 import jwt from "jsonwebtoken";
-import { cockroachDb as db, productionTable, productsTable, salesTable, saleItemsTable, inventoryTable, shopReceiptsTable, expensesTable } from "@workspace/db";
-import { eq, sql, and, inArray } from "drizzle-orm";
+import {
+  cockroachDb as db,
+  neonDb,
+  productionTable,
+  productsTable,
+  salesTable,
+  saleItemsTable,
+  inventoryTable,
+  shopReceiptsTable,
+  expensesTable,
+  dailyCountsTable,
+  attendanceTable,
+  employeesTable,
+} from "@workspace/db";
+import { eq, sql, and, inArray, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
@@ -18,9 +31,26 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
 
   const today = new Date().toISOString().split("T")[0];
 
-  // 1. Today's production entries (detailed log)
-  const productionEntries = await db
-    .select({
+  // ── Run ALL queries in parallel ────────────────────────────────────────────
+  const [
+    productionEntries,
+    productionByProduct,
+    receiptEntries,
+    receiptsByProduct,
+    salesTransactions,
+    salesByPerson,
+    salesByProduct,
+    inventory,
+    approvedExpensesRows,
+    pendingExpensesRows,
+    todayDailyCounts,
+    allProducts,
+    shiftClosingsRows,
+    newDayRequestRow,
+    selfAttendanceResult,
+  ] = await Promise.all([
+    // 1. Today's production entries
+    db.select({
       id: productionTable.id,
       productName: productsTable.name,
       productId: productionTable.productId,
@@ -32,11 +62,10 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     .from(productionTable)
     .leftJoin(productsTable, eq(productionTable.productId, productsTable.id))
     .where(sql`DATE(${productionTable.producedAt}) = ${today}`)
-    .orderBy(productionTable.producedAt);
+    .orderBy(productionTable.producedAt),
 
-  // 2. Production summary per product today
-  const productionByProduct = await db
-    .select({
+    // 2. Production summary per product today
+    db.select({
       productId: productionTable.productId,
       productName: productsTable.name,
       price: productsTable.price,
@@ -45,11 +74,10 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     .from(productionTable)
     .leftJoin(productsTable, eq(productionTable.productId, productsTable.id))
     .where(sql`DATE(${productionTable.producedAt}) = ${today}`)
-    .groupBy(productionTable.productId, productsTable.name, productsTable.price);
+    .groupBy(productionTable.productId, productsTable.name, productsTable.price),
 
-  // 3. Shop receipts today (what cashier confirmed receiving)
-  const receiptEntries = await db
-    .select({
+    // 3. Shop receipts today
+    db.select({
       id: shopReceiptsTable.id,
       productId: shopReceiptsTable.productId,
       productName: productsTable.name,
@@ -62,11 +90,10 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     .from(shopReceiptsTable)
     .leftJoin(productsTable, eq(shopReceiptsTable.productId, productsTable.id))
     .where(sql`DATE(${shopReceiptsTable.receivedAt}) = ${today}`)
-    .orderBy(shopReceiptsTable.receivedAt);
+    .orderBy(shopReceiptsTable.receivedAt),
 
-  // 4. Shop receipts summary per product today
-  const receiptsByProduct = await db
-    .select({
+    // 4. Shop receipts summary per product today
+    db.select({
       productId: shopReceiptsTable.productId,
       productName: productsTable.name,
       price: productsTable.price,
@@ -75,11 +102,10 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     .from(shopReceiptsTable)
     .leftJoin(productsTable, eq(shopReceiptsTable.productId, productsTable.id))
     .where(sql`DATE(${shopReceiptsTable.receivedAt}) = ${today}`)
-    .groupBy(shopReceiptsTable.productId, productsTable.name, productsTable.price);
+    .groupBy(shopReceiptsTable.productId, productsTable.name, productsTable.price),
 
-  // 5. Today's sales transactions
-  const salesTransactions = await db
-    .select({
+    // 5. Today's sales transactions
+    db.select({
       id: salesTable.id,
       receiptNumber: salesTable.receiptNumber,
       totalAmount: salesTable.totalAmount,
@@ -92,11 +118,10 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     .leftJoin(saleItemsTable, eq(salesTable.id, saleItemsTable.saleId))
     .where(sql`DATE(${salesTable.soldAt}) = ${today}`)
     .groupBy(salesTable.id)
-    .orderBy(salesTable.soldAt);
+    .orderBy(salesTable.soldAt),
 
-  // 6. Sales by person today
-  const salesByPerson = await db
-    .select({
+    // 6. Sales by person today
+    db.select({
       soldBy: salesTable.soldBy,
       transactions: sql<number>`COUNT(*)::int`,
       totalAmount: sql<number>`SUM(${salesTable.totalAmount})`,
@@ -104,11 +129,10 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     .from(salesTable)
     .where(sql`DATE(${salesTable.soldAt}) = ${today}`)
     .groupBy(salesTable.soldBy)
-    .orderBy(sql`SUM(${salesTable.totalAmount}) DESC`);
+    .orderBy(sql`SUM(${salesTable.totalAmount}) DESC`),
 
-  // 7. Sales by product today
-  const salesByProduct = await db
-    .select({
+    // 7. Sales by product today
+    db.select({
       productId: saleItemsTable.productId,
       productName: productsTable.name,
       qtySold: sql<number>`SUM(${saleItemsTable.quantity})::int`,
@@ -119,11 +143,10 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     .leftJoin(productsTable, eq(saleItemsTable.productId, productsTable.id))
     .where(sql`DATE(${salesTable.soldAt}) = ${today}`)
     .groupBy(saleItemsTable.productId, productsTable.name)
-    .orderBy(sql`SUM(${saleItemsTable.subtotal}) DESC`);
+    .orderBy(sql`SUM(${saleItemsTable.subtotal}) DESC`),
 
-  // 8. Current inventory
-  const inventory = await db
-    .select({
+    // 8. Current inventory
+    db.select({
       productId: inventoryTable.productId,
       productName: productsTable.name,
       price: productsTable.price,
@@ -131,35 +154,109 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     })
     .from(inventoryTable)
     .leftJoin(productsTable, eq(inventoryTable.productId, productsTable.id))
-    .orderBy(productsTable.name);
+    .orderBy(productsTable.name),
 
-  // 9. Today's approved expenses (deducted from grand total)
-  const approvedExpensesRows = await db
-    .select({ total: sql<number>`COALESCE(SUM(${expensesTable.amount}), 0)::int` })
-    .from(expensesTable)
-    .where(and(eq(expensesTable.expenseDate, today), eq(expensesTable.status, "approved")));
+    // 9. Today's approved expenses
+    db.select({ total: sql<number>`COALESCE(SUM(${expensesTable.amount}), 0)::int` })
+      .from(expensesTable)
+      .where(and(eq(expensesTable.expenseDate, today), eq(expensesTable.status, "approved"))),
 
-  // 10. Today's pending/awaiting expenses grouped by submitter (personal liability)
-  const pendingExpensesRows = await db
-    .select({
+    // 10. Today's pending expenses grouped by submitter
+    db.select({
       submittedBy: expensesTable.submittedBy,
       total: sql<number>`SUM(${expensesTable.amount})::int`,
       count: sql<number>`COUNT(*)::int`,
     })
     .from(expensesTable)
     .where(and(eq(expensesTable.expenseDate, today), inArray(expensesTable.status, ["pending", "awaiting_second"])))
-    .groupBy(expensesTable.submittedBy);
+    .groupBy(expensesTable.submittedBy),
 
+    // 11. Today's daily counts (ice cream, juice, coffee, tea)
+    db.select({
+      id: dailyCountsTable.id,
+      productId: dailyCountsTable.productId,
+      productName: productsTable.name,
+      price: productsTable.price,
+      category: productsTable.category,
+      countType: dailyCountsTable.countType,
+      quantity: dailyCountsTable.quantity,
+      countDate: dailyCountsTable.countDate,
+      recordedBy: dailyCountsTable.recordedBy,
+      recordedAt: dailyCountsTable.recordedAt,
+      notes: dailyCountsTable.notes,
+    })
+    .from(dailyCountsTable)
+    .leftJoin(productsTable, eq(dailyCountsTable.productId, productsTable.id))
+    .where(eq(dailyCountsTable.countDate, today))
+    .orderBy(productsTable.category, productsTable.name, dailyCountsTable.countType),
+
+    // 12. All active products (for POS / production dropdowns)
+    neonDb.select({
+      id: productsTable.id,
+      name: productsTable.name,
+      price: productsTable.price,
+      category: productsTable.category,
+      unit: productsTable.unit,
+      lowStockThreshold: productsTable.lowStockThreshold,
+      isActive: productsTable.isActive,
+    })
+    .from(productsTable)
+    .where(eq(productsTable.isActive, true))
+    .orderBy(productsTable.name),
+
+    // 13. Recent shift closings (last 60)
+    db.execute(sql`
+      SELECT id, closed_by, shift_date::text AS shift_date, closed_at, notes, status, approved_by, approved_at
+      FROM shift_closings ORDER BY shift_date DESC LIMIT 60
+    `).then((r) => r.rows.map((row: any) => ({
+      id: row.id,
+      closedBy: row.closed_by,
+      shiftDate: row.shift_date,
+      closedAt: row.closed_at,
+      notes: row.notes,
+      status: row.status ?? "approved",
+      approvedBy: row.approved_by ?? null,
+      approvedAt: row.approved_at ?? null,
+    }))).catch(() => [] as any[]),
+
+    // 14. Today's new-day request
+    db.execute(sql`
+      SELECT id, requested_by, requested_by_id,
+             for_date::text AS for_date, from_date::text AS from_date,
+             requested_at, status, approved_by, approved_at
+      FROM new_day_requests WHERE for_date = ${today}::date
+      ORDER BY requested_at DESC LIMIT 1
+    `).then((r) => r.rows[0] ?? null).catch(() => null),
+
+    // 15. Self attendance today
+    neonDb.select()
+      .from(employeesTable)
+      .where(sql`LOWER(${employeesTable.name}) = LOWER(${user.name})`)
+      .then(async ([emp]) => {
+        if (!emp) return null;
+        const records = await db.select().from(attendanceTable)
+          .where(eq(attendanceTable.employeeId, emp.id))
+          .orderBy(desc(attendanceTable.checkIn))
+          .limit(1);
+        const todayRecord = records.find((r) => r.date === today) ?? null;
+        if (!todayRecord) return null;
+        return {
+          ...todayRecord,
+          employeeName: emp.name,
+          checkIn: todayRecord.checkIn.toISOString(),
+          checkOut: todayRecord.checkOut?.toISOString() ?? null,
+        };
+      }).catch(() => null),
+  ]);
+
+  // ── Summaries ──────────────────────────────────────────────────────────────
   const approvedExpensesTotal = approvedExpensesRows[0]?.total ?? 0;
-
-  // Summaries
   const totalRevenue = salesTransactions.reduce((s, t) => s + (t.totalAmount ?? 0), 0);
   const totalReceived = receiptsByProduct.reduce((s, r) => s + (r.totalReceived ?? 0), 0);
   const totalProduced = productionByProduct.reduce((s, p) => s + (p.totalProduced ?? 0), 0);
   const totalSoldUnits = (salesByProduct as any[]).reduce((s, p) => s + (p.qtySold ?? 0), 0);
   const remainingStock = inventory.reduce((s, i) => s + (i.currentStock ?? 0), 0);
 
-  // Build accountability per cashier: received units attributed to them (from receipts) + expected cash from sales
   const cashierAccounts = salesByPerson.map((person) => {
     const theirReceipts = receiptEntries
       .filter((r) => r.receivedBy === person.soldBy)
@@ -171,8 +268,6 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
       unitsReceivedFromBakery: theirReceipts,
     };
   });
-
-  // Add people who received goods but have no sales yet
   const salesNames = new Set(salesByPerson.map((p) => p.soldBy));
   const receiversOnly = [...new Set(receiptEntries.map((r) => r.receivedBy))]
     .filter((name) => !salesNames.has(name))
@@ -226,6 +321,12 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
         count: r.count ?? 0,
       })),
     },
+    // Bundled data — eliminates extra round trips from the frontend
+    dailyCounts: todayDailyCounts.map((r) => ({ ...r, productName: r.productName ?? "Unknown", price: r.price ?? 0 })),
+    products: allProducts,
+    shiftClosings: shiftClosingsRows,
+    newDayRequest: newDayRequestRow,
+    selfAttendance: selfAttendanceResult,
   });
 });
 
