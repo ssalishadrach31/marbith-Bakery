@@ -1,5 +1,4 @@
 import pg from "pg";
-import bcrypt from "bcryptjs";
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
@@ -44,10 +43,9 @@ async function run() {
     ];
 
     for (const u of users) {
-      const hash = await bcrypt.hash(u.password, 10);
       await client.query(
         `INSERT INTO users (username, password, role, name, employee_id) VALUES ($1, $2, $3, $4, $5)`,
-        [u.username, hash, u.role, u.name, u.emp]
+        [u.username, u.password, u.role, u.name, u.emp]
       );
     }
     console.log("Users:", users.map(u => u.username).join(", "));
