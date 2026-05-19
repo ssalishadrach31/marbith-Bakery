@@ -1,0 +1,269 @@
+Marbith Bakery
+44
+Expenses
+Expenses require 2 different admin approvals to be finalised
+
+Submit Expense
+Two-admin approval policy — Every expense must be approved by two different admins before it is considered authorised and paid. The same admin cannot approve an expense twice.
+0
+Awaiting 1st Approval
+25
+Awaiting 2nd Approval
+0
+Fully Approved
+UGX 0
+This Month (Approved)
+Needs Action 25
+All Expenses
+Monthly Report
+Description	Amount	Status	Actions
+Drinks
+Vivian · 18 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 455,500	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Yoghurt
+Vivian · 18 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 130,800	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Salary
+Vivian · 18 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 34,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Saving
+Vivian · 18 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 1,010,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Martha
+Vivian · 18 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 3,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Juice cups
+Vivian · 18 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 98,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Transport dickson
+Vivian · 18 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 42,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Ice cream milk
+Vivian · 18 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 15,500	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Sugar
+Vivian · 18 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 34,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Polythene bags(black and white)
+Vivian · 18 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 27,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Salary
+Jaruhi Sharon · 17 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 34,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Saving
+Jaruhi Sharon · 17 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 365,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Transport Dickson
+Jaruhi Sharon · 17 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 5,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Electricity
+Jaruhi Sharon · 17 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 810,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Drinks
+Jaruhi Sharon · 17 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 423,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Yoghurt
+Jaruhi Sharon · 17 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 154,600	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Production
+Jaruhi Sharon · 17 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 78,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Coffee
+Jaruhi Sharon · 17 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 40,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Drinks
+Jaruhi Sharon · 17 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 200,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Ice cream milk
+Jaruhi Sharon · 17 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 10,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Soap
+Jaruhi Sharon · 17 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 2,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Disposables (juice)
+Jaruhi Sharon · 17 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 11,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Tukutuku
+Jaruhi Sharon · 17 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 16,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Fruits
+Jaruhi Sharon · 17 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 43,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
+Polythene bags (blackened and white)
+Jaruhi Sharon · 17 May 2026
+1
+Shadrach Ssali
+2
+Awaiting 2nd
+UGX 30,000	1 of 2 Approved	
+You approved — waiting for 2nd
+
+
