@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { queryClient } from "@/lib/query-client";
 import { getUser, getToken } from "@/lib/auth";
 import { getRoleHome } from "@/lib/role-utils";
+import { useEffect } from "react";
 import LoginPage from "@/pages/login";
 import DashboardPage from "@/pages/dashboard";
 import ProductionPage from "@/pages/production";
@@ -131,7 +132,17 @@ function Router() {
   );
 }
 
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
+
 function App() {
+  // Keep Render backend awake — ping every 9 minutes so it never sleeps
+  useEffect(() => {
+    const ping = () => fetch(`${API_BASE}/api/healthz`).catch(() => {});
+    ping();
+    const interval = setInterval(ping, 9 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
