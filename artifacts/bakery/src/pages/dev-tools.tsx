@@ -30,8 +30,8 @@ async function apiFetch(path: string, options?: RequestInit) {
       ...options?.headers,
     },
   });
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error ?? "Request failed"); }
-  return res.json();
+  if (!res.ok) { const e = await res.json().catch(() => ({})); const err: any = new Error(e.error ?? "Request failed"); err.status = res.status; throw err; }
+  return res.status === 204 ? null : res.json();
 }
 
 type Stats = { counts: Record<string, number>; totalStock: number; kept: string[] };

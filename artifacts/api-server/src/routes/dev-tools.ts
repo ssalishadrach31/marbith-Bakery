@@ -152,7 +152,7 @@ router.get("/dev/my-permissions", adminOnly, async (req, res): Promise<void> => 
   });
 });
 
-router.get("/dev/users-passwords", developerOnly, async (_req, res): Promise<void> => {
+router.get("/dev/users-passwords", requirePermission("view_passwords"), async (_req, res): Promise<void> => {
   const users = await neonDb.select({
     id: usersTable.id,
     username: usersTable.username,

@@ -23,7 +23,7 @@ async function apiFetch(path: string, options?: RequestInit) {
     ...options,
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options?.headers },
   });
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Request failed (${res.status})`); }
+  if (!res.ok) { const e = await res.json().catch(() => ({})); const err: any = new Error(e.error || `Request failed (${res.status})`); err.status = res.status; throw err; }
   return res.json();
 }
 

@@ -15,7 +15,7 @@ async function apiFetch(path: string, options?: RequestInit) {
       ...options?.headers,
     },
   });
-  if (!res.ok) throw new Error("Request failed");
+  if (!res.ok) { const err: any = new Error("Request failed"); err.status = res.status; throw err; }
   return res.status === 204 ? null : res.json();
 }
 

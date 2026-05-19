@@ -86,8 +86,10 @@ async function apiCall(path: string, options?: RequestInit) {
     },
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error ?? "Request failed");
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    const err: any = new Error(body.error ?? "Request failed");
+    err.status = res.status;
+    throw err;
   }
   return res.status === 204 ? null : res.json();
 }
@@ -185,7 +187,7 @@ export default function UsersPage() {
       const res = await fetch("/api/auth/login-logs", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error("Failed to fetch login logs");
+      if (!res.ok) { const e: any = new Error("Failed to fetch login logs"); e.status = res.status; throw e; }
       return res.json();
     },
     enabled: getUser()?.role === "admin",
