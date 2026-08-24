@@ -309,6 +309,8 @@ export default function StaffDashboardPage() {
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["staff-dashboard"],
     queryFn: () => apiFetch("/staff-dashboard"),
+    retry: 1,
+    refetchOnWindowFocus: false,
     refetchInterval: 60_000,
     staleTime: 20_000,
   });

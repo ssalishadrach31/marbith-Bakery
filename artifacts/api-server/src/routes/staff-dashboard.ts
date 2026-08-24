@@ -69,22 +69,7 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
 
   const dashboardRequest = (async () => {
     // ── Run ALL queries in parallel ──────────────────────────────────────────
-    const [
-    productionEntries,
-    productionByProduct,
-    receiptEntries,
-    receiptsByProduct,
-    salesTransactions,
-    salesByPerson,
-    salesByProduct,
-    inventory,
-    approvedExpensesRows,
-    pendingExpensesRows,
-    todayDailyCounts,
-    allProducts,
-    shiftClosingsRows,
-    newDayRequestRow,
-    ] = await Promise.all([
+    const queryResults = await Promise.allSettled([
     // 1. Today's production entries
     db.select({
       id: productionTable.id,
@@ -265,6 +250,27 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     `).then((r) => r.rows[0] ?? null).catch(() => null),
 
   ]);
+    const queryValues = queryResults.map((result, index) => {
+      if (result.status === "fulfilled") return result.value;
+      console.error(`staff-dashboard query ${index + 1} failed:`, result.reason);
+      return index === 13 ? null : [];
+    });
+    const [
+      productionEntries,
+      productionByProduct,
+      receiptEntries,
+      receiptsByProduct,
+      salesTransactions,
+      salesByPerson,
+      salesByProduct,
+      inventory,
+      approvedExpensesRows,
+      pendingExpensesRows,
+      todayDailyCounts,
+      allProducts,
+      shiftClosingsRows,
+      newDayRequestRow,
+    ] = queryValues as any[];
 
   // ── Summaries ──────────────────────────────────────────────────────────────
   const approvedExpensesTotal = approvedExpensesRows[0]?.total ?? 0;
