@@ -18,6 +18,9 @@ import { eq, sql, and, inArray, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 const JWT_SECRET = process.env.SESSION_SECRET || "bakery-secret-key";
+const DASHBOARD_CACHE_MS = 15_000;
+const dashboardCache = new Map<string, { expiresAt: number; value: any }>();
+const dashboardRequests = new Map<string, Promise<any>>();
 
 function getUser(req: any): { userId: number; role: string; name: string } | null {
   const h = req.headers.authorization;
@@ -30,9 +33,43 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const today = new Date().toISOString().split("T")[0];
+  const tomorrow = new Date(`${today}T12:00:00.000Z`);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const dayStart = `${today}T00:00:00.000Z`;
+  const dayEnd = tomorrow.toISOString();
+  const cacheKey = today;
+  const getSelfAttendance = () => neonDb.select()
+    .from(employeesTable)
+    .where(sql`LOWER(${employeesTable.name}) = LOWER(${user.name})`)
+    .then(async ([emp]) => {
+      if (!emp) return null;
+      const records = await db.select().from(attendanceTable)
+        .where(eq(attendanceTable.employeeId, emp.id))
+        .orderBy(desc(attendanceTable.checkIn))
+        .limit(1);
+      const todayRecord = records.find((record) => record.date === today) ?? null;
+      if (!todayRecord) return null;
+      return {
+        ...todayRecord,
+        employeeName: emp.name,
+        checkIn: todayRecord.checkIn.toISOString(),
+        checkOut: todayRecord.checkOut?.toISOString() ?? null,
+      };
+    }).catch(() => null);
+  const cached = dashboardCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    res.json({ ...cached.value, selfAttendance: await getSelfAttendance() });
+    return;
+  }
+  const pending = dashboardRequests.get(cacheKey);
+  if (pending) {
+    res.json({ ...(await pending), selfAttendance: await getSelfAttendance() });
+    return;
+  }
 
-  // ── Run ALL queries in parallel ────────────────────────────────────────────
-  const [
+  const dashboardRequest = (async () => {
+    // ── Run ALL queries in parallel ──────────────────────────────────────────
+    const [
     productionEntries,
     productionByProduct,
     receiptEntries,
@@ -47,8 +84,7 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     allProducts,
     shiftClosingsRows,
     newDayRequestRow,
-    selfAttendanceResult,
-  ] = await Promise.all([
+    ] = await Promise.all([
     // 1. Today's production entries
     db.select({
       id: productionTable.id,
@@ -61,7 +97,7 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     })
     .from(productionTable)
     .leftJoin(productsTable, eq(productionTable.productId, productsTable.id))
-    .where(sql`DATE(${productionTable.producedAt}) = ${today}`)
+    .where(sql`${productionTable.producedAt} >= ${dayStart}::timestamptz AND ${productionTable.producedAt} < ${dayEnd}::timestamptz`)
     .orderBy(productionTable.producedAt),
 
     // 2. Production summary per product today
@@ -73,7 +109,7 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     })
     .from(productionTable)
     .leftJoin(productsTable, eq(productionTable.productId, productsTable.id))
-    .where(sql`DATE(${productionTable.producedAt}) = ${today}`)
+    .where(sql`${productionTable.producedAt} >= ${dayStart}::timestamptz AND ${productionTable.producedAt} < ${dayEnd}::timestamptz`)
     .groupBy(productionTable.productId, productsTable.name, productsTable.price),
 
     // 3. Shop receipts today
@@ -89,7 +125,7 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     })
     .from(shopReceiptsTable)
     .leftJoin(productsTable, eq(shopReceiptsTable.productId, productsTable.id))
-    .where(sql`DATE(${shopReceiptsTable.receivedAt}) = ${today}`)
+    .where(sql`${shopReceiptsTable.receivedAt} >= ${dayStart}::timestamptz AND ${shopReceiptsTable.receivedAt} < ${dayEnd}::timestamptz`)
     .orderBy(shopReceiptsTable.receivedAt),
 
     // 4. Shop receipts summary per product today
@@ -101,7 +137,7 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     })
     .from(shopReceiptsTable)
     .leftJoin(productsTable, eq(shopReceiptsTable.productId, productsTable.id))
-    .where(sql`DATE(${shopReceiptsTable.receivedAt}) = ${today}`)
+    .where(sql`${shopReceiptsTable.receivedAt} >= ${dayStart}::timestamptz AND ${shopReceiptsTable.receivedAt} < ${dayEnd}::timestamptz`)
     .groupBy(shopReceiptsTable.productId, productsTable.name, productsTable.price),
 
     // 5. Today's sales transactions
@@ -116,7 +152,7 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     })
     .from(salesTable)
     .leftJoin(saleItemsTable, eq(salesTable.id, saleItemsTable.saleId))
-    .where(sql`DATE(${salesTable.soldAt}) = ${today}`)
+    .where(sql`${salesTable.soldAt} >= ${dayStart}::timestamptz AND ${salesTable.soldAt} < ${dayEnd}::timestamptz`)
     .groupBy(salesTable.id)
     .orderBy(salesTable.soldAt),
 
@@ -127,7 +163,7 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
       totalAmount: sql<number>`SUM(${salesTable.totalAmount})`,
     })
     .from(salesTable)
-    .where(sql`DATE(${salesTable.soldAt}) = ${today}`)
+    .where(sql`${salesTable.soldAt} >= ${dayStart}::timestamptz AND ${salesTable.soldAt} < ${dayEnd}::timestamptz`)
     .groupBy(salesTable.soldBy)
     .orderBy(sql`SUM(${salesTable.totalAmount}) DESC`),
 
@@ -141,7 +177,7 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     .from(saleItemsTable)
     .leftJoin(salesTable, eq(saleItemsTable.saleId, salesTable.id))
     .leftJoin(productsTable, eq(saleItemsTable.productId, productsTable.id))
-    .where(sql`DATE(${salesTable.soldAt}) = ${today}`)
+    .where(sql`${salesTable.soldAt} >= ${dayStart}::timestamptz AND ${salesTable.soldAt} < ${dayEnd}::timestamptz`)
     .groupBy(saleItemsTable.productId, productsTable.name)
     .orderBy(sql`SUM(${saleItemsTable.subtotal}) DESC`),
 
@@ -228,25 +264,6 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
       ORDER BY requested_at DESC LIMIT 1
     `).then((r) => r.rows[0] ?? null).catch(() => null),
 
-    // 15. Self attendance today
-    neonDb.select()
-      .from(employeesTable)
-      .where(sql`LOWER(${employeesTable.name}) = LOWER(${user.name})`)
-      .then(async ([emp]) => {
-        if (!emp) return null;
-        const records = await db.select().from(attendanceTable)
-          .where(eq(attendanceTable.employeeId, emp.id))
-          .orderBy(desc(attendanceTable.checkIn))
-          .limit(1);
-        const todayRecord = records.find((r) => r.date === today) ?? null;
-        if (!todayRecord) return null;
-        return {
-          ...todayRecord,
-          employeeName: emp.name,
-          checkIn: todayRecord.checkIn.toISOString(),
-          checkOut: todayRecord.checkOut?.toISOString() ?? null,
-        };
-      }).catch(() => null),
   ]);
 
   // ── Summaries ──────────────────────────────────────────────────────────────
@@ -280,7 +297,7 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
         .reduce((s, r) => s + (r.quantityReceived ?? 0), 0),
     }));
 
-  res.json({
+    const response = {
     date: today,
     production: {
       entries: productionEntries.map((e) => ({ ...e, productName: e.productName ?? "Unknown" })),
@@ -326,8 +343,19 @@ router.get("/staff-dashboard", async (req, res): Promise<void> => {
     products: allProducts,
     shiftClosings: shiftClosingsRows,
     newDayRequest: newDayRequestRow,
-    selfAttendance: selfAttendanceResult,
-  });
+    selfAttendance: null,
+    };
+    dashboardCache.set(cacheKey, { expiresAt: Date.now() + DASHBOARD_CACHE_MS, value: response });
+    return response;
+  })();
+
+  dashboardRequests.set(cacheKey, dashboardRequest);
+  try {
+    const response = await dashboardRequest;
+    res.json({ ...response, selfAttendance: await getSelfAttendance() });
+  } finally {
+    dashboardRequests.delete(cacheKey);
+  }
 });
 
 export default router;
