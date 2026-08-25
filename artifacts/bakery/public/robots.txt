@@ -22,5 +22,3 @@ Disallow: /communications
 Disallow: /profile
 Disallow: /dev-tools
 Disallow: /login
-
-Sitemap: https://marbith-bakery-suite.replit.app/sitemap.xml

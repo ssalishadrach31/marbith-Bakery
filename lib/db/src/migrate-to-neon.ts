@@ -39,7 +39,7 @@ async function migrate() {
   const tgt = await target.connect();
 
   try {
-    console.log("Starting migration: Replit → Neon\n");
+    console.log("Starting migration to Neon\n");
 
     // Step 1: Clear Neon tables in reverse order
     console.log("Clearing Neon tables...");

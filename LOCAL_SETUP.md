@@ -10,9 +10,13 @@
 
 ## Step 1 — Get the code
 
-Download this project from Replit:
-- Click the three-dot menu (⋮) at the top of Replit → **Download as ZIP**
-- Unzip the folder somewhere on your laptop (e.g. `C:\Projects\marbith-bakery`)
+Clone the project from GitHub:
+
+```bash
+git clone https://github.com/ssalishadrach31/marbith-Bakery.git
+cd marbith-Bakery
+```
+
 
 ---
 
@@ -114,4 +118,4 @@ psql -U postgres marbith_bakery < backup.sql
 
 ## Also deploying online?
 
-If you want the app to also be live on the internet (for staff/riders to access from their phones), click **Deploy** in Replit. The online version has its own separate database — changes in one don't affect the other.
+Use Vercel for the bakery frontend and Render for the API. Set `VITE_API_URL` in Vercel to the Render API URL, and set `NEON_DATABASE_URL` in Render to the Neon production connection string.

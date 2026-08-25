@@ -92,14 +92,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      <div className="px-5 py-5 border-b border-sidebar-border">
-        <div className="text-sidebar-primary font-bold text-lg tracking-tight leading-tight">
+      <div className="px-5 py-6 border-b border-sidebar-border">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground font-extrabold shadow-lg">M</div>
+          <div className="text-sidebar-primary font-bold text-lg tracking-tight leading-tight">
           {branding.appName || "Marbith Bakery"}
-          <br />
-          <span className="text-xs font-normal text-sidebar-foreground/50 tracking-normal">{branding.tagline ?? "& Investments"}</span>
+            <div className="text-xs font-normal text-sidebar-foreground/50 tracking-normal">{branding.tagline ?? "& Investments"}</div>
+          </div>
         </div>
-        <div className="text-sidebar-foreground/70 text-xs font-medium mt-1.5">{user?.name}</div>
-        <div className="text-sidebar-foreground/40 text-xs">{displayTitle}</div>
+        <div className="mt-5 rounded-xl bg-sidebar-accent/70 px-3 py-2.5">
+          <div className="text-sidebar-foreground/80 text-xs font-semibold">{user?.name}</div>
+          <div className="text-sidebar-foreground/40 text-[11px] capitalize">{displayTitle}</div>
+        </div>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {visibleNav.map((item) => {
@@ -109,10 +113,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <button
               key={item.href}
               onClick={() => { navigate(item.href); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left ${
                 active
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md"
+                    : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" />
@@ -137,7 +141,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background/80">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 bg-sidebar shrink-0 border-r border-sidebar-border">
         <SidebarContent />
@@ -147,7 +151,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <aside className="relative flex flex-col w-72 bg-sidebar z-10">
+          <aside className="relative flex flex-col h-full min-h-0 w-72 bg-sidebar z-10">
             <button
               onClick={() => setSidebarOpen(false)}
               className="absolute top-4 right-4 text-sidebar-foreground/60 hover:text-sidebar-foreground"
@@ -162,20 +166,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Main area */}
       <div className="flex flex-col flex-1 min-w-0 overflow-x-hidden">
         {/* Top header — visible on all screen sizes */}
-        <header className="flex items-center justify-between px-4 py-2.5 border-b border-amber-400 shrink-0" style={{ background: "linear-gradient(135deg, #fcd34d 0%, #f59e0b 100%)" }}>
+        <header className="flex items-center justify-between px-4 md:px-7 py-4 border-b border-border/80 bg-card/90 backdrop-blur-xl shrink-0 shadow-sm">
           {/* Left: hamburger on mobile, page label on desktop */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden text-amber-800"
+              className="md:hidden text-foreground hover:text-primary transition-colors"
             >
               <Menu className="h-5 w-5" />
             </button>
-            <span className="font-bold text-amber-900 md:hidden">{branding.appName || "Marbith Bakery"}</span>
-            <span className="hidden md:block text-sm font-medium text-amber-700">
+            <span className="font-bold text-foreground md:hidden">{branding.appName || "Marbith Bakery"}</span>
+            <span className="hidden md:block text-sm font-medium text-muted-foreground">
               {user?.name && (
                 <span>
-                  Welcome back, <span className="text-amber-900 font-bold">{user.name.split(" ")[0]}</span>
+                  Welcome back, <span className="text-foreground font-bold">{user.name.split(" ")[0]}</span>
                 </span>
               )}
             </span>
